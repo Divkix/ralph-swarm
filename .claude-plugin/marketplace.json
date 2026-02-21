@@ -1,0 +1,31 @@
+{
+  "name": "ralph-swarm",
+  "owner": {
+    "name": "Divanshu Chauhan"
+  },
+  "metadata": {
+    "description": "Spec-driven development with optional Agent Teams parallel execution"
+  },
+  "plugins": [
+    {
+      "name": "ralph-swarm",
+      "description": "Spec-driven planning with persistent sequential or parallel execution via Agent Teams. One command to plan, review, and ship.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Divanshu Chauhan"
+      },
+      "source": "./plugins/ralph-swarm",
+      "category": "development",
+      "tags": [
+        "ralph",
+        "swarm",
+        "agent-teams",
+        "spec-driven",
+        "parallel",
+        "autonomous",
+        "planning",
+        "execution"
+      ]
+    }
+  ]
+}
