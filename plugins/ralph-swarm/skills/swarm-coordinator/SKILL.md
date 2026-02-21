@@ -112,7 +112,7 @@ After assigning tasks, enter the monitoring loop:
 
 1. **All tasks completed and verified:** once every task across all batches is marked completed:
    - Run the **final verification suite** — the full test suite + lint + any project-specific checks defined in `tasks.md`.
-   - **If final verification passes:** output `<promise>SWARM COMPLETE</promise>` and update the state file phase to `"complete"`.
+   - **If final verification passes:** verify that `execution.completedTasks` + `execution.failedTasks` accounts for all `execution.totalTasks`, set `phase` to `"complete"` in the state file, then output `<promise>SWARM COMPLETE</promise>`. The stop hook independently verifies these counts before allowing exit.
    - **If final verification fails:** create targeted fix tasks from the failure output, assign them to available teammates, and re-enter the monitoring loop.
 2. **Update the state file** to `phase: "complete"` and set `execution.swarm` summary fields.
 

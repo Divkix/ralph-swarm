@@ -274,7 +274,11 @@ Update state file:
    - Advance `execution.taskIndex`
 5. If `--commit` is true, commit the changes with message: `feat(swarm): <task title> [<name>]`
 6. The **stop hook** will re-inject you with a prompt to continue to the next task
-7. When ALL tasks are completed, output exactly: `<promise>SWARM COMPLETE</promise>`
+7. When ALL tasks are completed:
+   - Verify that `execution.completedTasks` + `execution.failedTasks` accounts for all `execution.totalTasks` in the state file
+   - Set `phase` to `"complete"` in the state file
+   - Then output exactly: `<promise>SWARM COMPLETE</promise>`
+   - **Note:** The stop hook independently verifies task counts before allowing exit. If the numbers don't add up, the hook will reject the completion and re-inject you.
 
 ### Swarm Mode (--swarm is true):
 
@@ -307,11 +311,13 @@ Update state file:
      - If `--commit` is true, create a single commit: `feat(swarm): complete <name>`
      - Send `shutdown_request` to all teammates
      - Call **TeamDelete** to clean up
+     - Verify that `execution.completedTasks` + `execution.failedTasks` accounts for all `execution.totalTasks`
+     - Set `phase` to `"complete"` in the state file
      - Output exactly: `<promise>SWARM COMPLETE</promise>`
 
 ## Error Handling
 
 - If any planning phase agent fails, update that phase status to `"failed"` in the state file, report the error, and stop. Do not proceed to the next phase.
-- If a task execution fails in sequential mode, mark it as `"failed"`, increment `failedTasks`, and attempt the next eligible task. If all remaining tasks depend on failed tasks, output the completion promise with a failure summary.
+- If a task execution fails in sequential mode, mark it as `"failed"`, increment `failedTasks`, and attempt the next eligible task. If all remaining tasks depend on failed tasks, update the state file (ensure completedTasks + failedTasks accounts for all tasks), set `phase` to `"complete"`, then output the completion promise with a failure summary.
 - If the state file cannot be written, error immediately — the stop hook depends on it.
 - Never silently swallow errors. Always report what went wrong and what the user can do about it.

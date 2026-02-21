@@ -4,6 +4,10 @@ set -euo pipefail
 # Ralph Swarm Stop Hook — keeps the lead agent alive during execution.
 # Reads hook input from stdin, inspects .ralph-swarm-state.json, and decides
 # whether to block the exit (re-prompting the agent) or allow it.
+#
+# Completion is verified by checking task counts in the state file, not by
+# trusting the agent's text output. The promise tag is treated as a REQUEST
+# to exit — the hook independently validates that all tasks are accounted for.
 
 STATE_FILE=".ralph-swarm-state.json"
 HOOK_INPUT=$(cat)
@@ -27,6 +31,20 @@ read_state() {
       | sed 's/.*:[[:space:]]*//' \
       | tr -d '"' \
       || echo ""
+  fi
+}
+
+# ── Helper: count completed + failed tasks from state ─────────────────────────
+# Returns "completed failed total" as space-separated integers.
+read_task_counts() {
+  if has_jq; then
+    local completed failed total
+    completed=$(jq -r '(.execution.completedTasks | if type == "array" then length else 0 end)' "$STATE_FILE" 2>/dev/null || echo "0")
+    failed=$(jq -r '(.execution.failedTasks | if type == "array" then length else 0 end)' "$STATE_FILE" 2>/dev/null || echo "0")
+    total=$(jq -r '(.execution.totalTasks // 0)' "$STATE_FILE" 2>/dev/null || echo "0")
+    echo "${completed} ${failed} ${total}"
+  else
+    echo "0 0 0"
   fi
 }
 
@@ -62,11 +80,22 @@ if [[ "$phase" == "planning-review" ]]; then
   exit 0
 fi
 
+# If the agent already set phase to "complete", verify task counts before trusting it.
+if [[ "$phase" == "complete" ]]; then
+  read -r completed failed total <<< "$(read_task_counts)"
+  accounted=$((completed + failed))
+  if [[ "$total" -gt 0 && "$accounted" -ge "$total" ]]; then
+    cleanup
+    exit 0
+  fi
+  # Phase says complete but the numbers don't add up — fall through to block.
+fi
+
 # ── 3. Read iteration bounds ──────────────────────────────────────────────────
 iteration=$(read_state '.execution.iteration')
 max_iterations=$(read_state '.execution.maxIterations')
 
-# Default to 0 / 10 when values are missing or empty.
+# Default to 0 / 30 when values are missing or empty.
 iteration=${iteration:-0}
 max_iterations=${max_iterations:-30}
 
@@ -76,9 +105,38 @@ if [[ "$iteration" -ge "$max_iterations" ]]; then
   exit 0
 fi
 
-# ── 4. Check for the completion promise ───────────────────────────────────────
+# ── 4. Check for the completion promise (verified against task counts) ────────
+# The promise is treated as a request to exit. We independently verify that
+# all tasks are accounted for (completed + failed >= total) before allowing it.
 if echo "$HOOK_INPUT" | grep -q '<promise>SWARM COMPLETE</promise>'; then
-  cleanup
+  read -r completed failed total <<< "$(read_task_counts)"
+  accounted=$((completed + failed))
+  if [[ "$total" -eq 0 || "$accounted" -ge "$total" ]]; then
+    cleanup
+    exit 0
+  fi
+  # Promise claimed but tasks remain — block exit with a correction prompt.
+  increment_iteration "$iteration"
+  new_iteration=$((iteration + 1))
+  remaining=$((total - accounted))
+  prompt="You claimed completion but the task counts don't add up. "
+  prompt+="State file shows ${completed} completed + ${failed} failed = ${accounted} accounted, "
+  prompt+="but totalTasks is ${total}. ${remaining} tasks are still unaccounted for. "
+  prompt+="Continue executing remaining tasks. When genuinely ALL tasks are done, "
+  prompt+="update completedTasks/failedTasks in the state file, set phase to \"complete\", "
+  prompt+="then output <promise>SWARM COMPLETE</promise>."
+
+  if has_jq; then
+    jq -n \
+      --arg decision "block" \
+      --arg reason "$prompt" \
+      --arg sysMsg "Swarm iteration ${new_iteration} — premature completion rejected" \
+      '{"decision":$decision,"reason":$reason,"systemMessage":$sysMsg}'
+  else
+    cat <<EOF
+{"decision":"block","reason":"${prompt}","systemMessage":"Swarm iteration ${new_iteration} — premature completion rejected"}
+EOF
+  fi
   exit 0
 fi
 
@@ -92,13 +150,15 @@ swarm_mode=${swarm_mode:-false}
 if [[ "$swarm_mode" == "true" ]]; then
   prompt="You are the swarm lead. Check the TaskList for pending and in-progress tasks. "
   prompt+="Assign any unassigned tasks to idle teammates. Verify completed work by reviewing "
-  prompt+="task outputs. If ALL tasks are done and verified, output exactly "
-  prompt+="<promise>SWARM COMPLETE</promise> to finish. Otherwise, continue coordinating."
+  prompt+="task outputs. When ALL tasks are done and verified, update the state file "
+  prompt+="(completedTasks, failedTasks, totalTasks must reconcile), set phase to \"complete\", "
+  prompt+="then output <promise>SWARM COMPLETE</promise> to finish. Otherwise, continue coordinating."
 else
   prompt="You are in sequential execution mode. Read ${STATE_FILE} for the current task index "
   prompt+="and full task list. Execute the next incomplete task using the swarm-executor agent. "
-  prompt+="After each task completes, update the state file and move to the next one. "
-  prompt+="When ALL tasks are finished, output exactly <promise>SWARM COMPLETE</promise> to finish."
+  prompt+="After each task completes, update the state file (completedTasks/failedTasks arrays). "
+  prompt+="When ALL tasks are finished, set phase to \"complete\" in the state file, "
+  prompt+="then output <promise>SWARM COMPLETE</promise> to finish."
 fi
 
 # Emit the blocking decision as JSON on stdout.

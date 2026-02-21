@@ -91,8 +91,8 @@ Commit after tasks: <yes | no>
 1. Read the tasks list from the state file.
 2. Find the first task with `status` of `"pending"` whose `dependsOn` tasks are all `"completed"`.
 3. If no eligible task exists:
-   - If there are still `"pending"` tasks but all are blocked by `"failed"` tasks, report the deadlock and output: `<promise>SWARM COMPLETE</promise>` with a summary of what succeeded and what failed.
-   - If all tasks are `"completed"`, output: `<promise>SWARM COMPLETE</promise>`
+   - If there are still `"pending"` tasks but all are blocked by `"failed"` tasks, mark all blocked tasks as `"failed"` in `execution.failedTasks`, set `phase` to `"complete"` in the state file, then output `<promise>SWARM COMPLETE</promise>` with a summary of what succeeded and what failed.
+   - If all tasks are `"completed"`, verify `execution.completedTasks` + `execution.failedTasks` accounts for `execution.totalTasks`, set `phase` to `"complete"`, then output `<promise>SWARM COMPLETE</promise>`
 4. Delegate the eligible task to a `swarm-executor` agent (or general-purpose agent) using the Task tool:
    - Pass the full task description, acceptance criteria, relevant files list
    - Pass the content of the relevant spec files (research.md, requirements.md, design.md)
@@ -148,6 +148,8 @@ Commit after tasks: <yes | no>
      - Send `shutdown_request` to all teammates via **SendMessage**
      - Wait briefly for shutdown responses
      - Call **TeamDelete** to clean up the team
+     - Verify that `execution.completedTasks` + `execution.failedTasks` accounts for `execution.totalTasks`
+     - Set `phase` to `"complete"` in the state file
      - Output exactly: `<promise>SWARM COMPLETE</promise>`
 
 ## Error Handling
