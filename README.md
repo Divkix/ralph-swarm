@@ -102,7 +102,7 @@ Plans, skips review, immediately fires up a team of agents. No human in the loop
 | `--agent-type TYPE` | `auto` | Agent type for executors (e.g., `typescript-pro`, `golang-pro`) |
 | `--max-iterations N` | `30` | Safety cap on execution loop iterations |
 | `--commit` | `true` | Commit after each task (sequential) or after all tasks (swarm) |
-| `--no-commit` | — | Disable auto-commits. Default when `--yolo` is set |
+| `--no-commit` | — | Disable auto-commits |
 
 ---
 

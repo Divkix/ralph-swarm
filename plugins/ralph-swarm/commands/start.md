@@ -28,10 +28,10 @@ Parse `$ARGUMENTS` to extract the following:
 | **--teammates N** | Integer following the flag | `"auto"` |
 | **--agent-type TYPE** | String following the flag | `"auto"` |
 | **--max-iterations N** | Integer following the flag | `30` |
-| **--commit** | Boolean flag, present = true | `true` (but `false` if `--yolo` is set) |
+| **--commit** | Boolean flag, present = true | `true` |
 | **--no-commit** | Boolean flag, present = true (overrides --commit) | n/a |
 
-**Commit logic:** Default is `true`. If `--yolo` is set and neither `--commit` nor `--no-commit` is explicit, default to `false`. If `--no-commit` is explicitly set, always `false`. If `--commit` is explicitly set, always `true` (even with `--yolo`).
+**Commit logic:** Default is `true` regardless of `--yolo`. If `--no-commit` is explicitly set, always `false`. If `--commit` is explicitly set, always `true`.
 
 ## Step 2: Create State File
 
