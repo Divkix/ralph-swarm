@@ -1,175 +1,321 @@
 # ralph-swarm
 
-A Claude Code plugin that chains spec-driven planning with persistent execution. Supports sequential task execution out of the box and parallel execution via Agent Teams when you need multiple agents working simultaneously.
+### Spec-driven planning with parallel execution via Agent Teams
 
-One command. Full spec. Then build.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Claude Code](https://img.shields.io/badge/Built%20for-Claude%20Code-blueviolet)](https://claude.ai/code)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-## What It Does
+**One command. Full spec. Then build — sequentially or in parallel.**
 
-ralph-swarm splits development into two distinct phases:
+---
 
-1. **Planning Phase** -- Researches the codebase, gathers requirements, produces an architectural design, and breaks the work into discrete tasks with dependencies. The output is a structured spec, not code.
-2. **Execution Phase** -- Takes the spec and builds it. Either sequentially (one task at a time, default) or in parallel via Agent Teams (multiple agents working concurrently on independent tasks).
+## What Is This?
 
-The planning phase is deterministic and thorough. The execution phase is where the actual file changes happen. By default, you review the spec before execution begins. Pass `--yolo` to skip the review and go straight to building.
+ralph-swarm is a Claude Code plugin that takes a development goal, breaks it into a structured spec (research, requirements, design, tasks), then executes each task — either one-at-a-time or in parallel using Agent Teams.
+
+```text
+You: "Add user authentication with JWT"
+ralph-swarm: *researches codebase, writes requirements, designs architecture, breaks into tasks*
+ralph-swarm: *executes each task with specialized agents*
+ralph-swarm: SWARM COMPLETE
+```
+
+Two phases:
+
+1. **Planning** — Four sequential sub-phases produce a full spec. No code is written.
+2. **Execution** — Tasks from the spec are executed by specialized agents. Code is written here.
+
+---
 
 ## Installation
 
-Install as a Claude Code plugin:
-
 ```bash
-claude plugin add github:Divkix/ralph-swarm
+# Add the marketplace
+/plugin marketplace add Divkix/ralph-swarm
+
+# Install the plugin
+/plugin install ralph-swarm@ralph-swarm
+
+# Restart Claude Code
 ```
 
-Or clone and install locally:
+<details>
+<summary>Alternative: local development</summary>
 
 ```bash
 git clone https://github.com/Divkix/ralph-swarm.git
-claude plugin add /path/to/ralph-swarm
+claude --plugin-dir ./ralph-swarm/plugins/ralph-swarm
 ```
+
+</details>
+
+---
 
 ## Quick Start
 
-### Sequential execution with review
+### Sequential with review (default)
 
 ```
-/ralph-swarm:start "Build an authentication system with JWT tokens and refresh flow"
+/ralph-swarm:start "Build an authentication system with JWT tokens"
 ```
 
-Plans the work, shows you the spec, waits for approval, then executes tasks one at a time.
+Plans everything, pauses for your review, then executes tasks one at a time.
 
-### Parallel execution with Agent Teams
+### Parallel with review
 
 ```
-/ralph-swarm:start "Build an authentication system with JWT tokens and refresh flow" --swarm
+/ralph-swarm:start "Build an authentication system with JWT tokens" --swarm
 ```
 
-Same planning phase, but execution spawns an Agent Teams swarm. Independent tasks run in parallel across multiple agents. Dependent tasks wait for their blockers to complete.
+Same planning phase, but execution spawns multiple agents working in parallel.
 
 ### Full autopilot
 
 ```
-/ralph-swarm:start "Build an authentication system with JWT tokens and refresh flow" --swarm --yolo
+/ralph-swarm:start "Build an authentication system with JWT tokens" --swarm --yolo
 ```
 
-Plans, skips the review step, and immediately begins parallel execution. No human in the loop until it finishes or hits a blocker it cannot resolve.
+Plans, skips review, immediately fires up a team of agents. No human in the loop until it finishes.
+
+---
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `start` | Begin a new planning + execution session. Takes a task description and optional flags. |
-| `go` | Resume execution after reviewing a spec. Use this after `start` produces a plan and you approve it. |
-| `status` | Show current session state: planning progress, task completion, agent activity. |
-| `cancel` | Abort the current session. Shuts down any running agents and cleans up the task list. |
-| `help` | Print usage information and available flags. |
+| `/ralph-swarm:start <"goal"> [flags]` | Begin planning + execution |
+| `/ralph-swarm:go` | Resume execution after reviewing the spec |
+| `/ralph-swarm:status` | Show current progress |
+| `/ralph-swarm:cancel` | Abort the session, clean up state |
+| `/ralph-swarm:help` | Print usage and flags |
+
+---
 
 ## Flags
 
 | Flag | Default | Description |
 |---|---|---|
-| `--swarm` | `false` | Enable parallel execution via Agent Teams. Without this flag, tasks execute sequentially. |
-| `--yolo` | `false` | Skip the spec review step. Planning completes and execution begins immediately. |
-| `--teammates N` | `3` | Number of teammate agents to spawn in swarm mode. Ignored without `--swarm`. |
-| `--agent-type TYPE` | `code` | Agent type for spawned teammates. Determines tool access (e.g., `code`, `read-only`). Ignored without `--swarm`. |
-| `--max-iterations N` | `50` | Maximum task iterations before the session auto-stops. Safety limit to prevent runaway execution. |
-| `--commit` | `true` | Create git commits after completing each task (or group of tasks in swarm mode). |
-| `--no-commit` | `false` | Disable automatic git commits. Changes are left unstaged. |
+| `--swarm` | `false` | Enable parallel execution via Agent Teams |
+| `--yolo` | `false` | Skip spec review, go straight to execution |
+| `--teammates N` | `auto` | Number of parallel agents (max 10). Auto = `min(task_count, 5)` |
+| `--agent-type TYPE` | `auto` | Agent type for executors (e.g., `typescript-pro`, `golang-pro`) |
+| `--max-iterations N` | `30` | Safety cap on execution loop iterations |
+| `--commit` | `true` | Commit after each task (sequential) or after all tasks (swarm) |
+| `--no-commit` | — | Disable auto-commits. Default when `--yolo` is set |
+
+---
 
 ## How It Works
 
 ### Planning Phase
 
-The planning phase runs four sub-phases in sequence:
+Four sub-phases run in strict order. Each delegates to a specialized agent:
 
-1. **Research** -- Reads the codebase structure, existing patterns, dependencies, and conventions. Builds a context map of what exists and what the task description implies.
-2. **Requirements** -- Extracts explicit and implicit requirements from the task description. Identifies constraints, edge cases, and acceptance criteria.
-3. **Design** -- Produces an architectural design: which files to create or modify, data flow, API contracts, error handling strategy. References existing codebase patterns.
-4. **Tasks** -- Breaks the design into discrete, ordered tasks with dependency declarations. Each task has a clear scope, input, output, and definition of done.
+| Phase | Agent | Output |
+|---|---|---|
+| Research | `swarm-researcher` | `specs/<name>/research.md` |
+| Requirements | `swarm-requirements` | `specs/<name>/requirements.md` |
+| Design | `swarm-architect` | `specs/<name>/design.md` |
+| Tasks | `swarm-task-planner` | `specs/<name>/tasks.md` |
 
-The output is a structured spec document. In default mode, execution pauses here for your review.
+After planning completes, you review the spec files (unless `--yolo` is set).
 
 ### Execution Phase
 
 **Sequential mode (default):**
-Tasks execute one at a time in dependency order. Each task completes fully before the next begins. Straightforward and predictable.
+Tasks execute one at a time in dependency order. The stop hook re-injects the lead agent after each task to continue the loop.
 
 **Swarm mode (`--swarm`):**
-A team is created via Agent Teams. Tasks are loaded into a shared task list. The lead agent assigns independent tasks to teammates. Tasks with unmet dependencies remain blocked until their prerequisites complete. Teammates work in parallel, report back, and pick up the next available task.
+An Agent Team is created. Independent tasks run in parallel across multiple agents in isolated worktrees. Dependent tasks wait for their blockers to complete.
 
-### Flow Diagram
+### Flow
 
+```text
+/ralph-swarm:start "goal" [flags]
+       |
+       v
++------------------+
+|    PLANNING       |
+|  1. Research      |
+|  2. Requirements  |
+|  3. Design        |
+|  4. Tasks         |
++--------+---------+
+         |
+    --yolo set?
+    /          \
+  yes           no
+   |             |
+   |     +-------v--------+
+   |     |  REVIEW SPEC   |
+   |     |  (edit files,  |
+   |     |  then /go)     |
+   |     +-------+--------+
+   |             |
+   +------+------+
+          |
+     --swarm set?
+     /          \
+   yes           no
+    |             |
+    v             v
++---------+  +-----------+
+| PARALLEL |  | SEQUENTIAL |
+| N agents |  | 1 agent    |
+| worktrees|  | in order   |
++---------+  +-----------+
+    |             |
+    +------+------+
+           |
+           v
+    SWARM COMPLETE
 ```
-  User runs /ralph-swarm:start "task description" [flags]
-                          |
-                          v
-                  +---------------+
-                  |   PLANNING    |
-                  +---------------+
-                  | 1. Research   |
-                  | 2. Require    |
-                  | 3. Design     |
-                  | 4. Tasks      |
-                  +-------+-------+
-                          |
-                          v
-                  +---------------+
-                  |  --yolo set?  |
-                  +-------+-------+
-                    |           |
-                   yes          no
-                    |           |
-                    |           v
-                    |   +---------------+
-                    |   | REVIEW SPEC   |
-                    |   | (user views   |
-                    |   |  and approves)|
-                    |   +-------+-------+
-                    |           |
-                    |    /ralph-swarm:go
-                    |           |
-                    +-----+-----+
-                          |
-                          v
-                  +---------------+
-                  | --swarm set?  |
-                  +-------+-------+
-                    |           |
-                   yes          no
-                    |           |
-                    v           v
-            +-----------+  +-----------+
-            |  PARALLEL |  |SEQUENTIAL |
-            | EXECUTION |  | EXECUTION |
-            +-----------+  +-----------+
-            | TeamCreate |  | For each  |
-            | TaskCreate |  | task in   |
-            | Spawn N    |  | order:    |
-            | teammates  |  |  execute  |
-            | Assign &   |  |  commit   |
-            | coordinate |  |  next     |
-            +-----------+  +-----------+
-                    |           |
-                    +-----+-----+
-                          |
-                          v
-                  +---------------+
-                  |   COMPLETE    |
-                  | Summary +     |
-                  | final commit  |
-                  +---------------+
+
+---
+
+## Execution Modes In Detail
+
+### Sequential
+
+- Tasks run one at a time in dependency order.
+- Each task is delegated to a `swarm-executor` agent.
+- The stop hook (`swarm-watcher.sh`) blocks session exit and re-prompts the lead agent to pick up the next task.
+- When all tasks finish, the lead outputs `<promise>SWARM COMPLETE</promise>` and the hook allows exit.
+
+### Swarm (Parallel)
+
+- A team is created via Agent Teams (`TeamCreate`).
+- Tasks are loaded into a shared task list with dependency tracking.
+- Teammates are spawned in isolated git worktrees (`isolation: "worktree"`).
+- Independent tasks run simultaneously. Dependent tasks wait.
+- The lead monitors, reassigns failed tasks, and merges completed work.
+- 3-strike rule: if a task fails 3 times, it's marked failed and skipped.
+
+### Key Patterns
+
+| Pattern | Rule |
+|---|---|
+| Worktree Isolation | Teammates always get isolated worktrees |
+| Task Granularity | 1-5 files per task, clear done criteria |
+| Phase Dependencies | Phase N must complete before Phase N+1 starts |
+| Verification Gates | Tests run after each task AND each phase |
+| 3-Strike Failure | 3 retries per task, then mark failed |
+| Cost Control | Prefer 3-4 teammates over many idle agents |
+| Merge Strategy | Lead merges after verification, not teammates |
+
+---
+
+## State Management
+
+### State File
+
+`.ralph-swarm-state.json` in the project root tracks all session state:
+
+- Current phase (`planning` → `planning-review` → `execution` → `complete`)
+- Planning progress (which sub-phases are done)
+- Execution progress (completed/failed tasks, iteration count)
+- Configuration flags
+
+The stop hook reads this file to decide whether to re-inject the agent or allow exit.
+
+### Spec Files
+
+Generated during planning at `./specs/<name>/`:
+
+```text
+./specs/<name>/
+├── research.md       # Codebase patterns, dependencies, risks
+├── requirements.md   # User stories, acceptance criteria, scope
+├── design.md         # Architecture, data flow, API contracts
+└── tasks.md          # Ordered tasks with dependencies
 ```
+
+These files persist even after `/ralph-swarm:cancel`. They are the source of truth for execution.
+
+### Hooks
+
+| Hook | Script | Purpose |
+|---|---|---|
+| `SessionStart` | `load-context.sh` | Loads persisted state into the session on startup |
+| `Stop` | `swarm-watcher.sh` | Blocks exit during execution, re-prompts the agent |
+
+---
+
+## Troubleshooting
+
+**"A swarm is already active"**
+A previous session left behind `.ralph-swarm-state.json`. Run `/ralph-swarm:cancel` to clean up, then start fresh.
+
+**Task keeps failing after 3 retries**
+The task is marked as failed and skipped. Check the spec files and the task description for ambiguity. Fix the spec, then re-run.
+
+**Session exits during execution**
+The stop hook should prevent this. Make sure `jq` is installed (the hook falls back to grep/sed but `jq` is more reliable). Check that `.ralph-swarm-state.json` exists and has `"phase": "execution"`.
+
+**Swarm mode errors**
+Agent Teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`:
+
+```bash
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+Without this, `--swarm` will fail. Sequential mode works without it.
+
+**Want to edit the plan before execution?**
+That's the default. After planning completes, spec files are at `./specs/<name>/`. Edit them, then run `/ralph-swarm:go`.
+
+**Resume after crash?**
+The state file supports resumption. Just start a new session — the `SessionStart` hook loads the persisted state and shows you where things left off.
+
+---
+
+## Project Structure
+
+```text
+ralph-swarm/
+├── .claude-plugin/
+│   └── marketplace.json          # Marketplace metadata
+└── plugins/
+    └── ralph-swarm/
+        ├── .claude-plugin/
+        │   └── plugin.json       # Plugin manifest
+        ├── agents/               # Specialized agent definitions
+        │   ├── swarm-researcher.md
+        │   ├── swarm-requirements.md
+        │   ├── swarm-architect.md
+        │   ├── swarm-task-planner.md
+        │   ├── swarm-executor.md
+        │   └── swarm-verifier.md
+        ├── commands/             # Slash command implementations
+        │   ├── start.md
+        │   ├── go.md
+        │   ├── status.md
+        │   ├── cancel.md
+        │   └── help.md
+        ├── hooks/                # Session lifecycle hooks
+        │   ├── hooks.json
+        │   └── scripts/
+        │       ├── load-context.sh
+        │       └── swarm-watcher.sh
+        ├── references/           # Internal documentation
+        │   ├── agent-team-patterns.md
+        │   └── state-schema.md
+        └── skills/               # Coordinator skills
+            ├── swarm-coordinator/
+            └── team-composition/
+```
+
+---
 
 ## Requirements
 
-- **Claude Code 1.0.34+** -- Plugin system support.
-- **CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1** -- Required environment variable for `--swarm` mode. Agent Teams is an experimental feature. Set this in your shell before launching Claude Code:
-  ```bash
-  export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
-  ```
-  Without this variable, `--swarm` will fail with an error. Sequential mode works without it.
-- **No external plugin dependencies.** ralph-swarm uses only built-in Claude Code tools (TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage, etc.). Nothing to install beyond the plugin itself.
+- **Claude Code 1.0.34+** with plugin support
+- **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** for `--swarm` mode (sequential works without it)
+- No external dependencies — uses only built-in Claude Code tools
+
+---
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](plugins/ralph-swarm/LICENSE).
