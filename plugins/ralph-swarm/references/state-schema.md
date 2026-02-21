@@ -27,6 +27,7 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
   },
   "execution": {
     "swarm": "boolean",
+    "teamCreated": "boolean",
     "teammates": "number",
     "agentType": "string",
     "taskIndex": "number",
@@ -121,6 +122,13 @@ Tracks the state of task execution. Used by both sequential and swarm modes, tho
 - **Default:** `false`
 - **Description:** Whether Agent Teams (swarm mode) is active. When `true`, the coordinator spawns teammates and delegates work. When `false`, the lead agent does everything itself.
 - **Updated:** Set once when execution begins, based on `mode`.
+
+#### `execution.teamCreated`
+- **Type:** `boolean`
+- **Default:** `false`
+- **Description:** Whether TeamCreate was actually called to create an Agent Team. Set to `true` immediately after a successful `TeamCreate` call — before any other swarm action (task creation, teammate spawning, etc.). This field exists to prevent the AI from bypassing TeamCreate by using Task tool subagents with `run_in_background` instead.
+- **Updated:** Set to `true` once after TeamCreate succeeds. Never set to `true` without actually calling TeamCreate.
+- **Stop hook enforcement:** The stop hook (`swarm-watcher.sh`) checks this field when `execution.swarm` is `true`. If `teamCreated` is `false`, the hook blocks exit and demands the AI call TeamCreate. This is a hard enforcement — there is no workaround.
 
 #### `execution.teammates`
 - **Type:** `number`

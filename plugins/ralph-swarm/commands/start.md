@@ -83,6 +83,7 @@ Write `.ralph-swarm-state.json` in the project root with this exact structure:
   },
   "execution": {
     "swarm": false,
+    "teamCreated": false,
     "teammates": 0,
     "agentType": "auto",
     "taskIndex": 0,
@@ -280,11 +281,27 @@ Update state file:
    - Then output exactly: `<promise>SWARM COMPLETE</promise>`
    - **Note:** The stop hook independently verifies task counts before allowing exit. If the numbers don't add up, the hook will reject the completion and re-inject you.
 
+> **NON-NEGOTIABLE: TeamCreate is REQUIRED for Swarm Mode**
+>
+> The following are **PROHIBITED** — violating any of these will cause the stop hook to reject your completion:
+>
+> - **DO NOT** use the Task tool with `run_in_background` as a substitute for creating an Agent Team.
+> - **DO NOT** spawn independent subagents via the Task tool instead of creating a team with TeamCreate.
+> - **DO NOT** rationalize skipping TeamCreate for "efficiency", "optimization", or "deep dependency chains".
+> - **DO NOT** set `execution.teamCreated` to `true` without actually calling TeamCreate first.
+>
+> **Understand the difference:**
+> - **Wrong:** `Task` tool with `run_in_background: true` and no `team_name` — this spawns fire-and-forget subagents with no shared TaskList, no coordinator loop, no team.
+> - **Right:** `TeamCreate` first, then `Task` tool with `team_name` parameter — this creates a proper Agent Team with shared TaskList and coordinator oversight.
+>
+> The stop hook (`swarm-watcher.sh`) enforces this: if `execution.swarm` is `true` but `execution.teamCreated` is `false`, the hook will **block exit** and demand you call TeamCreate. There is no workaround.
+
 ### Swarm Mode (--swarm is true):
 
 1. Create an Agent Team using the **TeamCreate** tool:
    - `team_name`: `"ralph-<name>"`
    - `description`: `"Swarm execution for: <goal>"`
+   - **Immediately after TeamCreate succeeds**, update the state file: set `execution.teamCreated` to `true`. This MUST happen before any other swarm action (task creation, teammate spawning, etc.). If TeamCreate fails, do NOT set this field — report the error and stop.
 
 2. Create tasks in the team's task list using **TaskCreate** for each task from tasks.md:
    - `subject`: task title

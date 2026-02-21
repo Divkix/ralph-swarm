@@ -108,11 +108,27 @@ Commit after tasks: <yes | no>
    - Commit: `feat(swarm): <task title> [<name>]`
 7. The **stop hook** (`swarm-watcher.sh`) will detect the active execution phase and re-inject you with a prompt to continue the next task. You do not need to loop manually — just complete the current task and let the hook handle continuation.
 
+> **NON-NEGOTIABLE: TeamCreate is REQUIRED for Swarm Mode**
+>
+> The following are **PROHIBITED** — violating any of these will cause the stop hook to reject your completion:
+>
+> - **DO NOT** use the Task tool with `run_in_background` as a substitute for creating an Agent Team.
+> - **DO NOT** spawn independent subagents via the Task tool instead of creating a team with TeamCreate.
+> - **DO NOT** rationalize skipping TeamCreate for "efficiency", "optimization", or "deep dependency chains".
+> - **DO NOT** set `execution.teamCreated` to `true` without actually calling TeamCreate first.
+>
+> **Understand the difference:**
+> - **Wrong:** `Task` tool with `run_in_background: true` and no `team_name` — this spawns fire-and-forget subagents with no shared TaskList, no coordinator loop, no team.
+> - **Right:** `TeamCreate` first, then `Task` tool with `team_name` parameter — this creates a proper Agent Team with shared TaskList and coordinator oversight.
+>
+> The stop hook (`swarm-watcher.sh`) enforces this: if `execution.swarm` is `true` but `execution.teamCreated` is `false`, the hook will **block exit** and demand you call TeamCreate. There is no workaround.
+
 ### If Swarm Mode (flags.swarm is true):
 
 1. Create an Agent Team using the **TeamCreate** tool:
    - `team_name`: `"ralph-<name>"`
    - `description`: `"Swarm execution for: <goal>"`
+   - **Immediately after TeamCreate succeeds**, update the state file: set `execution.teamCreated` to `true`. This MUST happen before any other swarm action (batch computation, task creation, teammate spawning, etc.). If TeamCreate fails, do NOT set this field — report the error and stop.
 
 2. **Compute parallel batches** using the coordinator's Runtime Parallelism Computation algorithm (see `swarm-coordinator` skill):
    - Parse the File Manifest from tasks.md to build a file-conflict graph.

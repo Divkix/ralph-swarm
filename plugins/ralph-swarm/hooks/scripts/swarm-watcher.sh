@@ -147,9 +147,38 @@ new_iteration=$((iteration + 1))
 swarm_mode=$(read_state '.execution.swarm')
 swarm_mode=${swarm_mode:-false}
 
+# ── 5a. TeamCreate enforcement — block exit if swarm but no team created ─────
 if [[ "$swarm_mode" == "true" ]]; then
-  prompt="You are the swarm lead. Check the TaskList for pending and in-progress tasks. "
-  prompt+="Assign any unassigned tasks to idle teammates. Verify completed work by reviewing "
+  team_created=$(read_state '.execution.teamCreated')
+  team_created=${team_created:-false}
+  if [[ "$team_created" != "true" ]]; then
+    # TeamCreate was never called — block exit and force the AI to call it
+    tc_prompt="CRITICAL: You are in swarm mode but you NEVER called TeamCreate. "
+    tc_prompt+="You MUST call TeamCreate with team_name from the state file BEFORE doing anything else. "
+    tc_prompt+="DO NOT use the Task tool with run_in_background as a substitute. "
+    tc_prompt+="DO NOT spawn independent subagents. "
+    tc_prompt+="Call TeamCreate NOW, then set execution.teamCreated to true in the state file, "
+    tc_prompt+="then proceed with swarm execution using the Agent Team."
+    if has_jq; then
+      jq -n \
+        --arg decision "block" \
+        --arg reason "$tc_prompt" \
+        --arg sysMsg "Swarm iteration ${new_iteration} — TeamCreate REQUIRED" \
+        '{"decision":$decision,"reason":$reason,"systemMessage":$sysMsg}'
+    else
+      cat <<EOF
+{"decision":"block","reason":"${tc_prompt}","systemMessage":"Swarm iteration ${new_iteration} — TeamCreate REQUIRED"}
+EOF
+    fi
+    exit 0
+  fi
+fi
+
+if [[ "$swarm_mode" == "true" ]]; then
+  prompt="You are the swarm lead coordinating an Agent Team (created via TeamCreate). "
+  prompt+="All work MUST be done by Agent Team teammates, NOT by Task tool subagents. "
+  prompt+="Check the TaskList for pending and in-progress tasks. "
+  prompt+="Assign any unassigned tasks to idle teammates via TaskUpdate. Verify completed work by reviewing "
   prompt+="task outputs. When ALL tasks are done and verified, update the state file "
   prompt+="(completedTasks, failedTasks, totalTasks must reconcile), set phase to \"complete\", "
   prompt+="then output <promise>SWARM COMPLETE</promise> to finish. Otherwise, continue coordinating."

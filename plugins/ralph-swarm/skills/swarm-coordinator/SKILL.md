@@ -128,3 +128,15 @@ These are non-negotiable. Violating them breaks the swarm.
 6. **Never broadcast routine updates.** Use `SendMessage` with `type: "message"` to individual teammates. Reserve `type: "broadcast"` for critical blockers only.
 7. **Shutdown teammates when done.** After all work is complete and verified, send `type: "shutdown_request"` to each teammate before finishing.
 8. **Complete batch N before starting batch N+1.** Batches encode both file-conflict and dependency constraints. Skipping ahead risks conflicts and broken builds.
+9. **Always use TeamCreate for swarm execution.** Never use Task tool subagents with `run_in_background` as a substitute for creating an Agent Team. The stop hook enforces this — `execution.teamCreated` must be `true` before completion is allowed.
+
+## Anti-Patterns
+
+These are explicitly prohibited. The stop hook enforces violations at runtime.
+
+| Pattern | Why It's Wrong | What To Do Instead |
+|---------|---------------|-------------------|
+| Using Task tool with `run_in_background` instead of TeamCreate | Creates fire-and-forget subagents with no shared TaskList, no coordinator loop, no team oversight | Call TeamCreate first, then spawn teammates with `team_name` parameter |
+| Skipping TeamCreate because "dependencies are deep" or "it's more efficient" | Deep dependencies are handled by the batch algorithm — that's the whole point of the coordinator | Use TeamCreate + batched execution. The coordinator manages dependency ordering. |
+| Spawning subagents that independently manage their own task lists | Bypasses the shared TaskList, breaks monitoring, makes verification impossible | All tasks go through the team's shared TaskList via TaskCreate/TaskUpdate |
+| Setting `execution.teamCreated` to `true` without actually calling TeamCreate | Lies to the state file to bypass the stop hook guard | Only set `teamCreated` to `true` immediately after a successful TeamCreate call |
