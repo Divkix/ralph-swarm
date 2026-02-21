@@ -26,7 +26,7 @@ This skill defines the exact protocol for the lead agent to manage an Agent Team
      - `.ex` / `.exs` files present and/or `mix.exs` exists --> `elixir-expert`
      - SQL-heavy project (majority `.sql` files) --> `sql-pro`
      - Mixed languages or unclear --> `general-purpose`
-5. **Spawn teammates** via the `Task` tool with the `team_name` parameter and `isolation: "worktree"`. Name teammates sequentially (e.g., `worker-1`, `worker-2`, ...).
+5. **Spawn teammates** via the `Task` tool with the `team_name` parameter and `isolation: "worktree"`. Name teammates sequentially (e.g., `executor-1`, `executor-2`, ...).
 
 ## Runtime Parallelism Computation
 
@@ -122,7 +122,7 @@ These are non-negotiable. Violating them breaks the swarm.
 
 1. **Never write code yourself.** The coordinator only coordinates. All code changes are done by teammates.
 2. **Never skip verification.** Every task completion claim must be verified by running the specified checks.
-3. **Message teammates by name, not by ID.** Use the `name` field from the team config (e.g., `worker-1`), never the `agentId` UUID.
+3. **Message teammates by name, not by ID.** Use the `name` field from the team config (e.g., `executor-1`), never the `agentId` UUID.
 4. **Three-strike rule:** if a teammate fails a task 3 times (3 consecutive verification failures on the same task), mark the task as failed via `TaskUpdate`, add its index to `execution.failedTasks`, and move on. Do not waste more tokens on it.
 5. **Always update `.ralph-swarm-state.json` after state changes.** This is the single source of truth for resumability. If the session crashes and restarts, the state file is how we know where we left off.
 6. **Never broadcast routine updates.** Use `SendMessage` with `type: "message"` to individual teammates. Reserve `type: "broadcast"` for critical blockers only.

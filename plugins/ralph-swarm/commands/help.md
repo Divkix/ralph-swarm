@@ -62,14 +62,17 @@ FLAGS (for /ralph-swarm:start)
                        Default: false (sequential mode)
 
   --yolo               Skip the planning review pause and go straight
-                       to execution. Also sets --no-commit by default.
+                       to execution. Commit behavior is unchanged
+                       (--commit remains true by default).
                        Default: false
 
   --teammates <N>      Number of parallel agents in swarm mode.
-                       Default: "auto" (min of task count and 5, at least 2)
+                       Only effective with --swarm.
+                       Default: "auto" (min of largest batch size and 4, at least 2)
                        Max: 10
 
   --agent-type <TYPE>  Agent type for executor teammates.
+                       Only effective with --swarm.
                        Default: "auto" (uses swarm-executor)
 
   --max-iterations <N> Maximum stop-hook re-injection cycles before
@@ -80,7 +83,6 @@ FLAGS (for /ralph-swarm:start)
                        after all tasks (swarm). Default: true
 
   --no-commit          Do not commit changes. Overrides --commit.
-                       Default when --yolo is set.
 
 EXECUTION MODES
 
@@ -166,8 +168,9 @@ SPEC FILES
 REQUIREMENTS
 
   - Claude Code with plugin support
-  - For swarm mode: Agent Teams support (CLAUDE_AGENT_TEAMS=1 if required
-    by your Claude Code version)
+  - For swarm mode: Agent Teams support (TeamCreate tool must be available).
+    The /ralph-swarm:start command validates this automatically when --swarm
+    is used.
   - The following agent types should be available:
     - swarm-researcher (required, included with plugin)
     - swarm-requirements (optional, falls back to general-purpose)

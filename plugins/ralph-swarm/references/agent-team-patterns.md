@@ -16,10 +16,10 @@ How:
 Anti-pattern:
 ```
 # WRONG: teammates share the working directory
-Task(team_name="my-team", name="worker-1")  # no isolation
+Task(team_name="my-team", name="executor-1")  # no isolation
 
 # RIGHT: each teammate gets a worktree
-Task(team_name="my-team", name="worker-1", isolation="worktree")
+Task(team_name="my-team", name="executor-1", isolation="worktree")
 ```
 
 ## 2. Task Granularity
@@ -159,7 +159,7 @@ else:
 Why: If teammates merge their own work, merge conflicts between teammates go undetected until the next teammate pulls. The lead agent, having full visibility of all tasks, is the only one who can resolve cross-task conflicts correctly.
 
 Protocol:
-1. Each teammate works in their worktree on an auto-created branch (e.g., `ralph-worker-1-add-auth`).
+1. Each teammate works in their worktree on an auto-created branch (e.g., `ralph-executor-1-add-auth`).
 2. When a task is complete, the teammate commits and pushes to their branch.
 3. The coordinator verifies the branch:
    - Check out the branch (or inspect the worktree).

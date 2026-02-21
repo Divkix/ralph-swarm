@@ -33,6 +33,29 @@ Parse `$ARGUMENTS` to extract the following:
 
 **Commit logic:** Default is `true` regardless of `--yolo`. If `--no-commit` is explicitly set, always `false`. If `--commit` is explicitly set, always `true`.
 
+**Orphan flag handling:** If `--teammates` or `--agent-type` are provided without `--swarm`, emit a warning: `Warning: --teammates has no effect without --swarm. Running in sequential mode.` (and analogous for --agent-type). Continue execution normally.
+
+## Step 1.5: Validate Flag Combinations
+
+Before proceeding to state file creation, validate the parsed flags:
+
+1. If `--teammates` or `--agent-type` are set but `--swarm` is false:
+   - Print: "Warning: --<flag> has no effect without --swarm. Running in sequential mode."
+   - Continue normally. Do not error.
+
+2. If `--swarm` is set:
+   - Verify that Agent Teams functionality is available (the TeamCreate tool exists in your tool set).
+   - If not available, error: "Error: --swarm requires Agent Teams support. Check that your Claude Code version supports Agent Teams."
+   - Stop execution.
+
+3. If `--teammates` is provided as a number and is > 10:
+   - Print: "Warning: --teammates capped at 10. Using 10."
+   - Set teammates to 10.
+
+4. If `--teammates` is provided as a number and is < 1:
+   - Error: "Error: --teammates must be at least 1."
+   - Stop execution.
+
 ## Step 2: Create State File
 
 Write `.ralph-swarm-state.json` in the project root with this exact structure:
@@ -267,7 +290,7 @@ Update state file:
 3. Set up task dependencies using **TaskUpdate** with `addBlockedBy` where tasks.md specifies dependencies
 
 4. Determine teammate count:
-   - If `--teammates` is `"auto"`: use `min(totalTasks, 4)` but at least 2 (hard cap: 5 if user overrides)
+   - If `--teammates` is `"auto"`: compute parallel batches first (see swarm-coordinator skill), then use `min(largest_batch_size, 4)` but at least 2 (hard cap: 5 if user overrides)
    - If `--teammates` is a number: use that number, capped at 10
 
 5. Spawn teammates using the **Task** tool with `team_name` parameter:

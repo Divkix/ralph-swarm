@@ -39,13 +39,13 @@ Created:    <createdAt>
 
 ```
 --- Planning ---
-Research:      <done | pending | failed>    <specPath>/research.md
-Requirements:  <done | pending | failed>    <specPath>/requirements.md
-Design:        <done | pending | failed>    <specPath>/design.md
-Tasks:         <done | pending | failed>    <specPath>/tasks.md
+Research:      <complete | pending | in-progress | failed>    <specPath>/research.md
+Requirements:  <complete | pending | in-progress | failed>    <specPath>/requirements.md
+Design:        <complete | pending | in-progress | failed>    <specPath>/design.md
+Tasks:         <complete | pending | in-progress | failed>    <specPath>/tasks.md
 ```
 
-For each phase that is `"done"`, check if the corresponding file actually exists using the Read tool. If the file is missing despite the status being "done", append `[FILE MISSING]` as a warning.
+For each phase that is `"complete"`, check if the corresponding file actually exists using the Read tool. If the file is missing despite the status being "complete", append `[FILE MISSING]` as a warning.
 
 ## Step 4: Display Execution Progress (if applicable)
 

@@ -68,7 +68,7 @@ max_iterations=$(read_state '.execution.maxIterations')
 
 # Default to 0 / 10 when values are missing or empty.
 iteration=${iteration:-0}
-max_iterations=${max_iterations:-10}
+max_iterations=${max_iterations:-30}
 
 # If we have exhausted iterations, clean up and allow exit.
 if [[ "$iteration" -ge "$max_iterations" ]]; then

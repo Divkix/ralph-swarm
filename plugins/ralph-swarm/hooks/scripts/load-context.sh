@@ -47,6 +47,7 @@ fi
 
 # ── Build progress summary ────────────────────────────────────────────────────
 progress=""
+# "executing" is a legacy alias for "execution" — kept for backwards compatibility
 if [[ "$phase" == "execution" || "$phase" == "executing" ]]; then
   if has_jq; then
     total_tasks=$(jq -r '.execution.totalTasks // (.execution.tasks | length) // 0' "$STATE_FILE" 2>/dev/null || echo "0")
@@ -55,7 +56,7 @@ if [[ "$phase" == "execution" || "$phase" == "executing" ]]; then
     total_tasks="?"
     completed_tasks="?"
   fi
-  progress="Tasks: ${completed_tasks}/${total_tasks} completed, iteration ${iteration:-0}/${max_iterations:-10}"
+  progress="Tasks: ${completed_tasks}/${total_tasks} completed, iteration ${iteration:-0}/${max_iterations:-30}"
 else
   progress="Phase: ${phase}"
 fi

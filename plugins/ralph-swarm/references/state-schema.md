@@ -85,28 +85,32 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
 Tracks the progress of each planning sub-phase. All four sub-phases must reach `"complete"` before the session transitions to `"planning-review"`.
 
 #### `planning.research`
-- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`)
+- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`, `"failed"`)
 - **Default:** `"pending"`
 - **Description:** Status of the research phase — analyzing the codebase, understanding existing architecture, identifying relevant files and patterns.
 - **Updated:** Set to `"in-progress"` when research begins, `"complete"` when the research document is written to the spec directory.
+  - `"failed"` — The agent for this phase encountered an error. The session cannot proceed until the user intervenes (cancel and restart, or manually fix the spec file).
 
 #### `planning.requirements`
-- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`)
+- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`, `"failed"`)
 - **Default:** `"pending"`
 - **Description:** Status of requirements generation — translating the user's goal into concrete, testable requirements.
 - **Updated:** Set to `"in-progress"` when requirements analysis begins, `"complete"` when the requirements document is finalized.
+  - `"failed"` — The agent for this phase encountered an error. The session cannot proceed until the user intervenes (cancel and restart, or manually fix the spec file).
 
 #### `planning.design`
-- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`)
+- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`, `"failed"`)
 - **Default:** `"pending"`
 - **Description:** Status of the design phase — architectural decisions, file-level plan, interface definitions.
 - **Updated:** Set to `"in-progress"` when design work begins, `"complete"` when the design document is written.
+  - `"failed"` — The agent for this phase encountered an error. The session cannot proceed until the user intervenes (cancel and restart, or manually fix the spec file).
 
 #### `planning.tasks`
-- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`)
+- **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`, `"failed"`)
 - **Default:** `"pending"`
 - **Description:** Status of task breakdown — converting the design into vertical feature slice tasks in `tasks.md`. Each task is a complete feature slice with an explicit file list for runtime parallelism computation.
 - **Updated:** Set to `"in-progress"` when task breakdown begins, `"complete"` when `tasks.md` is finalized.
+  - `"failed"` — The agent for this phase encountered an error. The session cannot proceed until the user intervenes (cancel and restart, or manually fix the spec file).
 
 ### `execution` Object
 
