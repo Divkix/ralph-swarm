@@ -1,0 +1,11 @@
+{
+  "name": "ralph-swarm",
+  "version": "1.0.0",
+  "description": "Spec-driven development with parallel execution via Agent Teams. Plan with research, requirements, design, and tasks phases, then execute sequentially or in parallel with Agent Teams swarm coordination.",
+  "author": {
+    "name": "Divanshu Chauhan"
+  },
+  "homepage": "https://github.com/Divkix/ralph-swarm",
+  "license": "MIT",
+  "keywords": ["ralph", "swarm", "agent-teams", "spec-driven", "parallel", "autonomous", "planning", "execution"]
+}

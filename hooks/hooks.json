@@ -1,0 +1,27 @@
+{
+  "description": "Ralph Swarm hooks for persistent execution loop and session context loading",
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/swarm-watcher.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/load-context.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
