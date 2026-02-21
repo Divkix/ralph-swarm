@@ -49,8 +49,8 @@ fi
 progress=""
 if [[ "$phase" == "execution" || "$phase" == "executing" ]]; then
   if has_jq; then
-    total_tasks=$(jq -r '.execution.tasks | length // 0' "$STATE_FILE" 2>/dev/null || echo "0")
-    completed_tasks=$(jq -r '[.execution.tasks[]? | select(.status == "completed" or .status == "done")] | length' "$STATE_FILE" 2>/dev/null || echo "0")
+    total_tasks=$(jq -r '.execution.totalTasks // (.execution.tasks | length) // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+    completed_tasks=$(jq -r 'if .execution.completedTasks | type == "number" then .execution.completedTasks elif .execution.completedTasks | type == "array" then (.execution.completedTasks | length) else ([.execution.tasks[]? | select(.status == "completed" or .status == "done")] | length) end' "$STATE_FILE" 2>/dev/null || echo "0")
   else
     total_tasks="?"
     completed_tasks="?"
