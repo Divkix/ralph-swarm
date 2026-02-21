@@ -43,27 +43,29 @@ Examples of bad tasks:
 - "Fix the bug." (no context, no verification criteria)
 - "Add a comma to line 42." (too small, not worth the coordination overhead)
 
-## 3. Phase Dependencies
+## 3. Batch Dependencies
 
-**Never assign Phase N+1 tasks until ALL Phase N tasks are verified.**
+**Never assign Batch N+1 tasks until ALL Batch N tasks are verified.**
 
-Why: Later phases depend on earlier phases. If Phase 1 creates the database schema and Phase 2 writes queries against it, starting Phase 2 before Phase 1 is verified means Phase 2 agents might code against a broken or incomplete schema. The result: wasted tokens, conflicting changes, and a debugging nightmare.
+Why: Batches are computed at runtime based on file conflicts and declared dependencies between vertical slice tasks. If Batch 1 creates the database schema and Batch 2 writes queries against it, starting Batch 2 before Batch 1 is verified means Batch 2 agents might code against a broken or incomplete schema. The result: wasted tokens, conflicting changes, and a debugging nightmare.
+
+How batches are computed: The coordinator analyzes the File Manifest from tasks.md, builds a conflict graph (tasks sharing files conflict), respects declared dependencies, and groups non-conflicting, dependency-satisfied tasks into batches. This is done at runtime, not at planning time.
 
 Protocol:
-1. Create and assign all Phase N tasks.
-2. Monitor until every Phase N task is either completed or failed.
-3. Run the phase-level verification gate (see pattern #4).
-4. Only then create Phase N+1 tasks.
+1. Create and assign all Batch N tasks.
+2. Monitor until every Batch N task is either completed or failed.
+3. Run the batch-level verification gate (see pattern #4).
+4. Only then create Batch N+1 tasks.
 
-Edge case: If a Phase N task fails after 3 retries and is marked failed, the coordinator must decide:
-- If the failed task is a prerequisite for Phase N+1 tasks, those dependent tasks must also be marked failed or reassigned as fix tasks.
-- If the failed task is independent (e.g., a non-critical test), Phase N+1 can proceed.
+Edge case: If a Batch N task fails after 3 retries and is marked failed, the coordinator must decide:
+- If the failed task is a prerequisite for Batch N+1 tasks (declared in their `Dependencies` field), those dependent tasks must also be marked failed or reassigned as fix tasks.
+- If the failed task is independent (no later tasks depend on it), Batch N+1 can proceed.
 
 ## 4. Verification Gates
 
-**Run tests after each phase, not just each task.**
+**Run tests after each batch, not just each task.**
 
-Why: Individual tasks might pass their own tests but break integration. A function might work in isolation but conflict with another function written by a different teammate in the same phase. Phase-level verification catches these cross-task regressions.
+Why: Individual tasks might pass their own tests but break integration. A function might work in isolation but conflict with another function written by a different teammate in the same batch. Batch-level verification catches these cross-task regressions.
 
 Two levels of verification:
 
@@ -72,13 +74,13 @@ Two levels of verification:
 - Scope: the specific tests or checks mentioned in the task description.
 - Example: "Run `go test ./pkg/auth/...` to verify the auth service."
 
-### Phase-Level Verification
-- Run after all tasks in a phase are complete.
+### Batch-Level Verification
+- Run after all tasks in a batch are complete.
 - Scope: the full test suite + lint + type-check for the affected area.
-- Example: "Run `make test && make lint` to verify Phase 2 integration."
+- Example: "Run `make test && make lint` to verify Batch 2 integration."
 
 ### Final Verification
-- Run after all phases complete.
+- Run after all batches complete.
 - Scope: the entire project test suite, lint, build.
 - Example: "Run `make test && make lint && make build` to verify everything."
 
@@ -128,7 +130,7 @@ Tracking strikes: The coordinator tracks strike count per task in memory (not in
 Why: Each teammate has overhead — spawning, context loading, worktree creation, shutdown. A teammate that completes 1 task and idles is wasteful. A teammate that completes 5 tasks amortizes the overhead.
 
 Guidelines:
-- If you have 8 tasks across 2 phases of 4, use 4 teammates (not 8).
+- If you have 8 tasks across 2 batches of 4, use 4 teammates (not 8).
 - If you have 3 tasks total, use 2 teammates (or even 1 in sequential mode).
 - The sweet spot is 3-4 teammates for most projects.
 - 5 teammates is the hard cap. Beyond that, the coordinator itself becomes the bottleneck.
@@ -161,7 +163,7 @@ Protocol:
 2. When a task is complete, the teammate commits and pushes to their branch.
 3. The coordinator verifies the branch:
    - Check out the branch (or inspect the worktree).
-   - Run task-level and phase-level verification.
+   - Run task-level and batch-level verification.
 4. If verification passes, the coordinator merges the branch into the base branch:
    - Use fast-forward merge when possible (`git merge --ff-only`).
    - If fast-forward is not possible, do a regular merge.
@@ -169,7 +171,7 @@ Protocol:
 5. After merging, the coordinator ensures the base branch still passes all tests.
 6. Do NOT rebase teammate branches onto the updated base mid-execution — it causes confusion and lost work. Only merge forward.
 
-Merge order: Merge in phase order. All Phase 1 branches merge before any Phase 2 branches. Within a phase, merge in task completion order (first finished, first merged).
+Merge order: Merge in batch order. All Batch 1 branches merge before any Batch 2 branches. Within a batch, merge in task completion order (first finished, first merged).
 
 ## Summary
 
@@ -177,8 +179,8 @@ Merge order: Merge in phase order. All Phase 1 branches merge before any Phase 2
 |-------------------------|---------------------------------------------------------|-----------------------------------------|
 | Worktree Isolation      | Always use `isolation: "worktree"`                      | Data loss, unresolvable conflicts       |
 | Task Granularity        | 1-5 files, 5-30 min, clear done criteria                | Context loss, wasted tokens             |
-| Phase Dependencies      | Complete Phase N before starting Phase N+1              | Broken integration, cascading failures  |
-| Verification Gates      | Test after each task AND each phase                     | Undetected regressions                  |
+| Batch Dependencies      | Complete Batch N before starting Batch N+1              | Broken integration, cascading failures  |
+| Verification Gates      | Test after each task AND each batch                     | Undetected regressions                  |
 | Teammate Communication  | DM for routine, broadcast only for critical blockers    | Token waste, unnecessary interruptions  |
 | Failure Handling        | 3 strikes then mark failed                              | Infinite retry loops, token drain       |
 | Cost Control            | Fewer teammates with more tasks                         | Overhead exceeds productivity           |

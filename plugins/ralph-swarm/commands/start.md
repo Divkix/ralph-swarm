@@ -42,7 +42,9 @@ Write `.ralph-swarm-state.json` in the project root with this exact structure:
   "name": "<name>",
   "goal": "<goal>",
   "phase": "planning",
+  "mode": "sequential",
   "specPath": "./specs/<name>/",
+  "teamName": "ralph-<name>",
   "flags": {
     "swarm": false,
     "yolo": false,
@@ -58,10 +60,14 @@ Write `.ralph-swarm-state.json` in the project root with this exact structure:
   },
   "execution": {
     "swarm": false,
+    "teammates": 0,
+    "agentType": "auto",
     "taskIndex": 0,
     "totalTasks": 0,
-    "completedTasks": 0,
-    "failedTasks": 0,
+    "completedTasks": [],
+    "failedTasks": [],
+    "batches": [],
+    "currentBatch": 0,
     "iteration": 0,
     "maxIterations": 30,
     "tasks": []
@@ -95,7 +101,7 @@ Execute these four phases in strict order. Each phase delegates to a specialized
 - Instruction: "Research the codebase and external sources for: `<goal>`. Save findings to `<specPath>/research.md`. Follow the research protocol exactly. Signal completion with RESEARCH_COMPLETE."
 - Pass: goal, CLAUDE.md content, project root path
 - After completion: Read `<specPath>/research.md` to verify it was created
-- Update state: set `planning.research` to `"done"`
+- Update state: set `planning.research` to `"complete"`
 
 ### Phase 4b: Requirements
 
@@ -109,7 +115,7 @@ Execute these four phases in strict order. Each phase delegates to a specialized
   - Dependencies on external systems or libraries
 - Pass: goal, CLAUDE.md content, research.md content
 - After completion: Read `<specPath>/requirements.md` to verify
-- Update state: set `planning.requirements` to `"done"`
+- Update state: set `planning.requirements` to `"complete"`
 
 ### Phase 4c: Architecture/Design
 
@@ -124,37 +130,68 @@ Execute these four phases in strict order. Each phase delegates to a specialized
   - Migration/rollback plan if applicable
 - Pass: goal, CLAUDE.md content, research.md content, requirements.md content
 - After completion: Read `<specPath>/design.md` to verify
-- Update state: set `planning.design` to `"done"`
+- Update state: set `planning.design` to `"complete"`
 
 ### Phase 4d: Task Breakdown
 
 - Delegate to `swarm-task-planner` agent type if it exists, otherwise use a general-purpose agent
-- Instruction: "Based on all specs in `<specPath>/`, break the work into discrete, actionable tasks for: `<goal>`. Save to `<specPath>/tasks.md`."
+- Instruction: "Based on all specs in `<specPath>/`, break the work into vertical feature slices for: `<goal>`. Save to `<specPath>/tasks.md`."
 - The tasks.md must use this exact format:
 
 ```markdown
-# Tasks: <name>
+# Implementation Tasks: <name>
 
-## Task 1: <title>
-- **Status:** pending
-- **Priority:** high | medium | low
-- **Depends on:** [task numbers or "none"]
-- **Files:** [list of files to create/modify]
-- **Description:** [what to do, specific enough for an agent to execute without ambiguity]
-- **Acceptance criteria:**
-  - [ ] [testable criterion]
-  - [ ] [testable criterion]
+**Date:** [current date]
+**Design Source:** design.md
+**Total Tasks:** [count]
+**Slicing Strategy:** vertical (each task = complete feature slice)
 
-## Task 2: <title>
-...
+## TASK-001: [Feature Slice Title]
+
+**Complexity:** S | M | L
+**Files:**
+- CREATE: `path/to/file`
+- MODIFY: `path/to/file` — [what changes]
+**Dependencies:** None
+**Description:**
+[End-to-end slice description, precise enough for an agent to execute without ambiguity]
+**Context to Read:**
+- design.md, section "[relevant section]"
+- `[existing file path]` — [why to read it]
+**Verification:**
+```bash
+[exact command to verify]
 ```
 
-- Each task must be completable in a single agent session (if a task is too large, split it)
-- Tasks must be ordered by dependency (tasks with no dependencies first)
-- Include a final "verification" task that runs tests/linting
+## TASK-002: [Feature Slice Title]
+...
+
+---
+
+## File Manifest
+
+| Task | Files Touched |
+|------|---------------|
+| TASK-001 | `file1`, `file2` |
+| TASK-002 | ... |
+
+## Risk Register
+
+| Task | Risk | Mitigation |
+|------|------|------------|
+| TASK-xxx | [what could go wrong] | [how to handle it] |
+```
+
+- Each task is a vertical slice delivering complete functionality end-to-end (not a horizontal layer)
+- Each task must declare exact file lists (`Files: CREATE/MODIFY`) — this enables runtime parallelism computation
+- Each task must be completable in a single agent session (1-5 files, if larger, split it)
+- Tasks must be ordered by dependency (foundational slices first)
+- Include a final "verification" task that runs the full test suite and linting
+- The File Manifest at the bottom provides quick conflict scanning for the coordinator
+- The task format is mode-independent — the same tasks.md works for both sequential and swarm execution
 - Pass: goal, CLAUDE.md content, all prior spec files
 - After completion: Read `<specPath>/tasks.md` to verify
-- Update state: set `planning.tasks` to `"done"`, set `phase` to `"planning-complete"`
+- Update state: set `planning.tasks` to `"complete"`, set `phase` to `"planning-complete"`
 
 ## Step 5: Commit Spec Files (if --commit)
 
@@ -210,7 +247,7 @@ Update state file:
    - Instruction: "Execute this task. When complete, report what you did and what files you changed."
 4. After the agent completes:
    - Update the task status to `"completed"` in the state file (or `"failed"` if it errored)
-   - Increment `execution.completedTasks` (or `execution.failedTasks`)
+   - Append task index to `execution.completedTasks` (or `execution.failedTasks`)
    - Advance `execution.taskIndex`
 5. If `--commit` is true, commit the changes with message: `feat(swarm): <task title> [<name>]`
 6. The **stop hook** will re-inject you with a prompt to continue to the next task
@@ -230,7 +267,7 @@ Update state file:
 3. Set up task dependencies using **TaskUpdate** with `addBlockedBy` where tasks.md specifies dependencies
 
 4. Determine teammate count:
-   - If `--teammates` is `"auto"`: use `min(totalTasks, 5)` but at least 2
+   - If `--teammates` is `"auto"`: use `min(totalTasks, 4)` but at least 2 (hard cap: 5 if user overrides)
    - If `--teammates` is a number: use that number, capped at 10
 
 5. Spawn teammates using the **Task** tool with `team_name` parameter:

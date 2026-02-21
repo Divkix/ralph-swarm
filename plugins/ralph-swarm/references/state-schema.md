@@ -10,6 +10,15 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
   "goal": "string",
   "phase": "string",
   "mode": "string",
+  "specPath": "string",
+  "teamName": "string",
+  "flags": {
+    "swarm": "boolean",
+    "yolo": "boolean",
+    "commit": "boolean",
+    "teammates": "number | \"auto\"",
+    "agentType": "string"
+  },
   "planning": {
     "research": "string",
     "requirements": "string",
@@ -24,15 +33,13 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
     "totalTasks": "number",
     "completedTasks": "number[]",
     "failedTasks": "number[]",
+    "batches": "string[][]",
+    "currentBatch": "number",
     "iteration": "number",
-    "maxIterations": "number"
+    "maxIterations": "number",
+    "tasks": "object[]"
   },
-  "flags": {
-    "yolo": "boolean",
-    "commitSpec": "boolean"
-  },
-  "specPath": "string",
-  "teamName": "string"
+  "createdAt": "string"
 }
 ```
 
@@ -55,10 +62,11 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
 - **Example:** `"Add JWT authentication to the API endpoints"`
 
 #### `phase`
-- **Type:** `string` (enum: `"planning"`, `"planning-review"`, `"execution"`, `"complete"`)
+- **Type:** `string` (enum: `"planning"`, `"planning-complete"`, `"planning-review"`, `"execution"`, `"complete"`)
 - **Default:** `"planning"`
 - **Description:** The current high-level phase of the session.
   - `"planning"` — The coordinator is generating specs: research, requirements, design, and tasks.
+  - `"planning-complete"` — All four planning sub-phases are done. If `--yolo`, transitions directly to `"execution"`. Otherwise transitions to `"planning-review"`.
   - `"planning-review"` — Planning is done, waiting for user review/approval before execution.
   - `"execution"` — Tasks are being executed (either sequentially or via swarm).
   - `"complete"` — All tasks finished and verified. Terminal state.
@@ -97,7 +105,7 @@ Tracks the progress of each planning sub-phase. All four sub-phases must reach `
 #### `planning.tasks`
 - **Type:** `string` (enum: `"pending"`, `"in-progress"`, `"complete"`)
 - **Default:** `"pending"`
-- **Description:** Status of task breakdown — converting the design into phased, assignable tasks in `tasks.md`.
+- **Description:** Status of task breakdown — converting the design into vertical feature slice tasks in `tasks.md`. Each task is a complete feature slice with an explicit file list for runtime parallelism computation.
 - **Updated:** Set to `"in-progress"` when task breakdown begins, `"complete"` when `tasks.md` is finalized.
 
 ### `execution` Object
@@ -125,13 +133,13 @@ Tracks the state of task execution. Used by both sequential and swarm modes, tho
 #### `execution.taskIndex`
 - **Type:** `number`
 - **Default:** `0`
-- **Description:** The index of the current task being executed. **Sequential mode only.** In swarm mode, this field is not used (tasks are tracked via `completedTasks` and `failedTasks` instead).
+- **Description:** The index of the current task being executed. **Sequential mode only.** In swarm mode, this field is not used (tasks are tracked via `completedTasks`, `failedTasks`, and `batches` instead).
 - **Updated:** Incremented after each task completes (or fails and is skipped) in sequential mode.
 
 #### `execution.totalTasks`
 - **Type:** `number`
 - **Default:** `0`
-- **Description:** Total number of tasks across all phases in `tasks.md`.
+- **Description:** Total number of tasks in `tasks.md`.
 - **Updated:** Set once after parsing `tasks.md`. If fix tasks are created during execution, this count is incremented.
 
 #### `execution.completedTasks`
@@ -146,6 +154,19 @@ Tracks the state of task execution. Used by both sequential and swarm modes, tho
 - **Description:** Indices of tasks that failed after exhausting retries (3 attempts in swarm mode). These tasks are skipped.
 - **Updated:** A task index is appended when a task hits the retry limit and is abandoned.
 
+#### `execution.batches`
+- **Type:** `string[][]` (array of arrays of TASK-IDs)
+- **Default:** `[]`
+- **Description:** Computed parallel execution batches. **Swarm mode only.** Each inner array contains TASK-IDs that can run simultaneously (no file conflicts, all dependencies satisfied). Computed at runtime by the coordinator from the File Manifest in tasks.md using the file-conflict graph algorithm.
+- **Updated:** Set once when execution begins, after the coordinator parses `tasks.md` and computes the conflict graph.
+- **Example:** `[["TASK-001"], ["TASK-002", "TASK-003"], ["TASK-004"], ["TASK-005"]]`
+
+#### `execution.currentBatch`
+- **Type:** `number`
+- **Default:** `0`
+- **Description:** Index into the `batches` array indicating which batch is currently being executed. **Swarm mode only.** Batch 0 is the first batch.
+- **Updated:** Incremented when all tasks in the current batch are completed or failed, and the coordinator advances to the next batch.
+
 #### `execution.iteration`
 - **Type:** `number`
 - **Default:** `0`
@@ -154,13 +175,33 @@ Tracks the state of task execution. Used by both sequential and swarm modes, tho
 
 #### `execution.maxIterations`
 - **Type:** `number`
-- **Default:** `100`
+- **Default:** `30`
 - **Description:** Safety cap on the number of monitoring iterations. Prevents runaway sessions that burn tokens indefinitely. If `iteration >= maxIterations`, the coordinator stops execution, marks remaining tasks as failed, and transitions to `phase: "complete"`.
-- **Updated:** Set once during initialization. Can be overridden by user flags.
+- **Updated:** Set once during initialization. Can be overridden by `--max-iterations` flag.
+
+#### `execution.tasks`
+- **Type:** `object[]` (array of task objects)
+- **Default:** `[]`
+- **Description:** Parsed task list from `tasks.md`. Each object represents a task with its current execution status. Populated when the session transitions to the `"execution"` phase.
+- **Object shape:**
+  ```json
+  {"id": 1, "title": "Task title", "status": "pending", "dependsOn": []}
+  ```
+  - `id` (`number`): Task number (1-based, derived from TASK-NNN identifiers).
+  - `title` (`string`): The feature slice title from tasks.md.
+  - `status` (`string`, enum: `"pending"`, `"in-progress"`, `"completed"`, `"failed"`): Current execution status.
+  - `dependsOn` (`number[]`): Array of task IDs that must complete before this task can start.
+- **Updated:** Populated once when execution begins. Individual task `status` fields are updated as tasks complete or fail.
 
 ### `flags` Object
 
-Boolean configuration flags that modify coordinator behavior.
+Configuration flags parsed from CLI arguments that modify coordinator behavior.
+
+#### `flags.swarm`
+- **Type:** `boolean`
+- **Default:** `false`
+- **Description:** When `true`, use Agent Teams (swarm mode) for parallel task execution. When `false`, execute tasks sequentially.
+- **Updated:** Set once from CLI flags during initialization.
 
 #### `flags.yolo`
 - **Type:** `boolean`
@@ -168,17 +209,29 @@ Boolean configuration flags that modify coordinator behavior.
 - **Description:** When `true`, skip the `"planning-review"` phase entirely. Go directly from `"planning"` to `"execution"` without waiting for user approval. Useful for trusted, well-defined goals where human review is unnecessary.
 - **Updated:** Set once from CLI flags during initialization.
 
-#### `flags.commitSpec`
+#### `flags.commit`
 - **Type:** `boolean`
-- **Default:** `false`
-- **Description:** When `true`, the spec directory (research, requirements, design, tasks.md) is committed to git after planning completes. When `false`, specs are written but not committed.
+- **Default:** `true`
+- **Description:** When `true`, commit spec files after planning and commit each completed task during execution. When `false`, changes are written but not committed. Overridden by `--no-commit`.
+- **Updated:** Set once from CLI flags during initialization.
+
+#### `flags.teammates`
+- **Type:** `number | "auto"`
+- **Default:** `"auto"`
+- **Description:** Number of teammates to spawn in swarm mode. When `"auto"`, the coordinator computes the optimal count from the largest parallel batch (capped at 4, minimum 2). When a number, that exact count is used (capped at 10).
+- **Updated:** Set once from CLI flags during initialization.
+
+#### `flags.agentType`
+- **Type:** `string`
+- **Default:** `"auto"`
+- **Description:** Agent type to use for swarm teammates. When `"auto"`, the coordinator auto-detects from the project's dominant language (see team-composition skill). When an explicit type (e.g., `"golang-pro"`), all teammates use that type.
 - **Updated:** Set once from CLI flags during initialization.
 
 ### Additional Top-Level Fields
 
 #### `specPath`
 - **Type:** `string`
-- **Default:** `"specs/"` (relative to project root)
+- **Default:** `"./specs/"` (relative to project root)
 - **Description:** Path to the directory where spec documents are stored. The actual spec files live in `<specPath>/<name>/` (e.g., `specs/add-user-auth/`).
 - **Updated:** Set once during initialization. Can be overridden by user configuration.
 
@@ -196,11 +249,13 @@ Initialization:
 
 Planning:
   planning.* fields transition: pending -> in-progress -> complete
-  phase transitions: "planning" -> "planning-review"
+  phase transitions: "planning" -> "planning-complete"
 
 Review (skipped if flags.yolo):
+  If --yolo: phase transitions: "planning-complete" -> "execution"
+  If not --yolo: "planning-complete" -> "planning-review"
   User approves/rejects
-  phase transitions: "planning-review" -> "execution" (or back to "planning")
+  phase transitions: "planning-review" -> "execution"
 
 Execution:
   execution.* fields updated continuously
@@ -218,6 +273,6 @@ If a session crashes or is interrupted, the state file allows the coordinator to
 
 1. Read `.ralph-swarm-state.json`.
 2. Check `phase` to determine where we left off.
-3. If `phase == "execution"`: compare `completedTasks` + `failedTasks` against `totalTasks` to find remaining work.
-4. Re-create the team (if swarm mode) and assign remaining tasks.
+3. If `phase == "execution"`: compare `completedTasks` + `failedTasks` against `totalTasks` to find remaining work. In swarm mode, check `currentBatch` to determine which batch to resume from.
+4. Re-create the team (if swarm mode) and assign remaining tasks from the current batch onward.
 5. Continue the monitoring loop from `iteration`.

@@ -37,15 +37,17 @@ Resume swarm execution after the planning-review pause. This command picks up wh
    Error: Tasks file not found at <specPath>/tasks.md. The planning phase may have failed.
    Check the spec files at <specPath>/ and run /ralph-swarm:cancel to reset.
    ```
-3. Parse the tasks file to extract all tasks. Each task has:
-   - **id**: sequential number (Task 1, Task 2, etc.)
-   - **title**: the task title
-   - **status**: should be "pending" at this point
-   - **dependsOn**: list of task IDs this task depends on (or "none")
-   - **files**: list of files to create/modify
-   - **description**: what to do
-   - **acceptance criteria**: testable criteria list
-4. Count the total number of tasks.
+3. Parse the tasks file to extract all tasks. The format is a flat list of vertical slices (no phase grouping). Each task has:
+   - **id**: TASK-NNN identifier (e.g., TASK-001, TASK-002)
+   - **title**: the feature slice title
+   - **complexity**: S, M, or L
+   - **files**: list of files to CREATE or MODIFY (with operation type)
+   - **dependencies**: list of TASK-IDs this task depends on (or "None")
+   - **description**: end-to-end slice description
+   - **context to read**: files and design sections the executor needs
+   - **verification**: exact command to verify completion
+4. Parse the **File Manifest** table at the bottom of tasks.md. This provides a quick-scan summary of which tasks touch which files.
+5. Count the total number of tasks.
 
 ## Step 3: Update State for Execution
 
@@ -54,8 +56,8 @@ Update `.ralph-swarm-state.json` with these changes:
 - Set `phase` to `"execution"`
 - Set `execution.totalTasks` to the total task count
 - Set `execution.taskIndex` to `0`
-- Set `execution.completedTasks` to `0`
-- Set `execution.failedTasks` to `0`
+- Set `execution.completedTasks` to `[]`
+- Set `execution.failedTasks` to `[]`
 - Set `execution.iteration` to `0`
 - Set `execution.swarm` to the value of `flags.swarm`
 - Populate `execution.tasks` as an array of objects:
@@ -99,7 +101,7 @@ Commit after tasks: <yes | no>
 5. After the agent completes:
    - Read the agent's output to determine success or failure
    - Update the task status in `.ralph-swarm-state.json` to `"completed"` or `"failed"`
-   - Increment `execution.completedTasks` or `execution.failedTasks`
+   - Append task index to `execution.completedTasks` or `execution.failedTasks`
    - Advance `execution.taskIndex`
 6. If `flags.commit` is true and the task succeeded:
    - Stage changed files: `git add -A` (or preferably stage specific files the agent reported changing)
@@ -112,30 +114,36 @@ Commit after tasks: <yes | no>
    - `team_name`: `"ralph-<name>"`
    - `description`: `"Swarm execution for: <goal>"`
 
-2. Create tasks in the team's task list using **TaskCreate** for each task from the parsed tasks.md:
+2. **Compute parallel batches** using the coordinator's Runtime Parallelism Computation algorithm (see `swarm-coordinator` skill):
+   - Parse the File Manifest from tasks.md to build a file-conflict graph.
+   - Group non-conflicting, dependency-satisfied tasks into batches.
+   - Store batches in the state file under `execution.batches`.
+
+3. Create tasks in the team's task list using **TaskCreate** for Batch 1 tasks only:
    - `subject`: task title
-   - `description`: full task description including file list, acceptance criteria, all relevant spec file contents, and CLAUDE.md content
+   - `description`: full task description including file list, verification command, all relevant spec file contents, and CLAUDE.md content
    - `activeForm`: present continuous form of the task (e.g., "Implementing user auth" for "Implement user auth")
 
-3. Set up dependencies using **TaskUpdate** with `addBlockedBy` based on each task's `dependsOn` field.
+4. Set up dependencies using **TaskUpdate** with `addBlockedBy` based on each task's `Dependencies` field.
 
-4. Determine teammate count:
-   - If `flags.teammates` is `"auto"`: use `min(totalTasks, 5)` but at least 2
+5. Determine teammate count:
+   - If `flags.teammates` is `"auto"`: use the size of the largest batch, recommended cap at 4 (hard cap: 5), minimum 2
    - If `flags.teammates` is a number: use that exact number, capped at 10
 
-5. Spawn teammates using the **Task** tool with `team_name` and `name` parameters:
+6. Spawn teammates using the **Task** tool with `team_name` and `name` parameters:
    - Agent type: `flags.agentType` if not `"auto"`, otherwise `"swarm-executor"` (fall back to default if agent type does not exist)
    - Names: `executor-1`, `executor-2`, ..., `executor-N`
    - Instruction for each: "You are a swarm executor on team `ralph-<name>`. Check the TaskList for available tasks (pending, no owner, not blocked). Claim one by setting yourself as owner via TaskUpdate. Execute it fully. Mark it completed via TaskUpdate. Then check TaskList again for more work. When no tasks remain, go idle."
 
-6. Assign initial unblocked tasks to teammates using **TaskUpdate** with `owner` field.
+7. Assign Batch 1 tasks to teammates using **TaskUpdate** with `owner` field.
 
-7. You are the **coordinator**. Your loop:
+8. You are the **coordinator**. Your loop:
    - Check **TaskList** to monitor progress
-   - When a teammate completes a task, check if new tasks are unblocked and assign them
+   - When all tasks in the current batch are completed, advance to the next batch: create tasks from the next batch via **TaskCreate**, assign to available teammates
+   - Update `execution.currentBatch` in the state file after each batch transition
    - If a teammate reports a failure, decide whether to retry (assign to a different teammate) or mark as failed
    - Keep the execution state file in sync: update `execution.completedTasks`, `execution.failedTasks`, and individual task statuses
-   - When ALL tasks are done:
+   - When ALL batches are complete:
      - If `flags.commit` is true: stage and commit all changes with `feat(swarm): complete <name>`
      - Send `shutdown_request` to all teammates via **SendMessage**
      - Wait briefly for shutdown responses

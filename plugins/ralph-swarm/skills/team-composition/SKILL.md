@@ -12,20 +12,24 @@ This skill determines the optimal number of teammates and the correct agent type
 ## Analysis Process
 
 1. **Read `tasks.md`** from the spec directory.
-2. **Count phases** and the number of tasks in each phase.
-3. **Find the phase with the most parallel tasks.** That count is the maximum number of useful teammates — spawning more than that means idle agents burning tokens.
-4. **Apply the hard cap of 5 teammates.** Beyond 5, coordination overhead and token costs grow faster than throughput. Diminishing returns hit hard.
-5. **Recommended teammate count:** `min(max_parallel_tasks, 4)`. Using 4 instead of 5 gives a buffer for the coordinator to stay responsive.
+2. **Parse the File Manifest** at the bottom of tasks.md (or the `Files:` section of each task).
+3. **Compute parallel batches** by analyzing file conflicts:
+   - Two tasks conflict if they share any file (CREATE or MODIFY).
+   - Tasks with dependencies cannot be in the same batch as their prerequisites.
+   - Group non-conflicting, dependency-free tasks into batches (same algorithm as the coordinator's Runtime Parallelism Computation).
+4. **Find the largest batch.** That count is the maximum number of useful teammates — spawning more than that means idle agents burning tokens.
+5. **Apply the hard cap of 5 teammates.** Beyond 5, coordination overhead and token costs grow faster than throughput. Diminishing returns hit hard.
+6. **Recommended teammate count:** `min(largest_batch_size, 4)`. Using 4 instead of 5 gives a buffer for the coordinator to stay responsive.
 
 ### Examples
 
-| Phases | Max parallel tasks | Recommended teammates |
-|--------|--------------------|-----------------------|
-| 3      | 2                  | 2                     |
-| 5      | 6                  | 4 (capped)            |
-| 1      | 1                  | 1                     |
-| 4      | 3                  | 3                     |
-| 2      | 10                 | 4 (capped)            |
+| Total Tasks | Largest Batch Size | Recommended teammates |
+|-------------|--------------------|-----------------------|
+| 6           | 2                  | 2                     |
+| 10          | 6                  | 4 (capped)            |
+| 3           | 1                  | 1                     |
+| 8           | 3                  | 3                     |
+| 12          | 10                 | 4 (capped)            |
 
 ## Agent Type Selection
 
@@ -100,7 +104,7 @@ When reporting team composition to the user or the coordinator, always use this 
 
 ```
 Team: <N> x <agent-type> in worktrees
-Estimated parallel phases: <P>
+Computed batches: <B> (largest batch: <L> tasks)
 Estimated cost: $<low>-$<high>
 ```
 
@@ -108,7 +112,7 @@ Estimated cost: $<low>-$<high>
 
 ```
 Team: 3 x golang-pro in worktrees
-Estimated parallel phases: 4
+Computed batches: 4 (largest batch: 3 tasks)
 Estimated cost: $45-$135
 ```
 

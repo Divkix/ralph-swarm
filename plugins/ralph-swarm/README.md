@@ -1,0 +1,133 @@
+# ralph-swarm
+
+A Claude Code plugin for spec-driven development with optional parallel execution via Agent Teams.
+
+## How It Works
+
+```
+Goal → Research → Requirements → Design → Tasks → Execution
+                                             ↓
+                                    Vertical Feature Slices
+                                             ↓
+                              ┌──────────────┴──────────────┐
+                              │                             │
+                        Sequential Mode              Swarm Mode
+                        (one at a time)        (runtime parallelism)
+                              │                             │
+                              │                    File-conflict analysis
+                              │                    → compute batches
+                              │                    → assign to teammates
+                              │                             │
+                              └──────────────┬──────────────┘
+                                             ↓
+                                      Verified Output
+```
+
+## Key Concepts
+
+### Vertical Slices
+
+Tasks are decomposed as **vertical feature slices**, not horizontal layers. Each task delivers a complete piece of functionality end-to-end:
+
+```
+TASK: "Add user authentication"
+  ├── migration.sql       (database layer)
+  ├── auth_types.go       (domain layer)
+  ├── auth_service.go     (service layer)
+  ├── auth_handler.go     (handler layer)
+  ├── auth_test.go        (tests)
+  └── router.go           (wiring)
+```
+
+This means every completed task produces something testable. Sequential mode gets value after every single task.
+
+### Runtime Parallelism (Swarm Mode)
+
+Instead of manually grouping tasks into phases at planning time, parallelism is computed at runtime:
+
+1. The task planner produces vertical slices with **exact file lists** for each task.
+2. The swarm coordinator builds a **file-conflict graph** — tasks sharing files cannot run in parallel.
+3. Non-conflicting tasks with satisfied dependencies are grouped into **batches**.
+4. Batch 1 tasks run simultaneously. When Batch 1 completes, Batch 2 starts. And so on.
+
+The same `tasks.md` works for both sequential and swarm execution. The format is mode-independent.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/ralph-swarm:start "goal" [flags]` | Plan and optionally execute a task |
+| `/ralph-swarm:go` | Resume execution after reviewing the plan |
+| `/ralph-swarm:status` | Show current progress |
+| `/ralph-swarm:cancel` | Cancel and clean up |
+| `/ralph-swarm:help` | Show available commands |
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--swarm` | `false` | Enable parallel execution with Agent Teams |
+| `--yolo` | `false` | Skip plan review, go straight to execution |
+| `--teammates N` | `auto` | Number of parallel agents (swarm mode) |
+| `--agent-type TYPE` | `auto` | Agent type for teammates (e.g., `golang-pro`) |
+| `--commit` | `true` | Commit after each task |
+| `--no-commit` | - | Disable auto-commit |
+| `--max-iterations N` | `30` | Safety cap on execution loops |
+
+## Execution Modes
+
+### Sequential (default)
+
+Tasks execute one at a time in dependency order. The lead agent delegates each task to an executor subagent, verifies the result, optionally commits, then moves to the next task.
+
+Best for: small projects, quick tasks, when you want tight control.
+
+### Swarm (`--swarm`)
+
+The coordinator spawns multiple executor agents in isolated git worktrees. It computes parallel batches from the File Manifest in tasks.md and assigns non-conflicting tasks to teammates simultaneously.
+
+Best for: larger projects with many independent feature slices, when you want speed.
+
+## Task Format
+
+```markdown
+# Implementation Tasks: [Feature Name]
+
+**Total Tasks:** [count]
+**Slicing Strategy:** vertical (each task = complete feature slice)
+
+## TASK-001: [Feature Slice Title]
+**Complexity:** S | M | L
+**Files:**
+- CREATE: `path/to/file`
+- MODIFY: `path/to/file` — [what changes]
+**Dependencies:** None
+**Description:** [end-to-end slice description]
+**Verification:** [command]
+
+---
+
+## File Manifest
+| Task | Files Touched |
+|------|---------------|
+| TASK-001 | `file1`, `file2` |
+```
+
+The File Manifest at the bottom enables the coordinator to quickly scan for file conflicts and compute parallel batches without re-parsing every task.
+
+## Architecture
+
+| Component | Role |
+|-----------|------|
+| `commands/start.md` | Entry point: parse args, run planning phases, begin execution |
+| `commands/go.md` | Resume execution after plan review |
+| `agents/swarm-task-planner.md` | Decompose design into vertical feature slices |
+| `agents/swarm-executor.md` | Execute a single task autonomously |
+| `agents/swarm-verifier.md` | Verify task completion |
+| `agents/swarm-researcher.md` | Research codebase and external sources |
+| `agents/swarm-requirements.md` | Generate requirements from research |
+| `agents/swarm-architect.md` | Design architecture from requirements |
+| `skills/swarm-coordinator/` | Coordinate Agent Teams: batch computation, task assignment, monitoring |
+| `skills/team-composition/` | Determine optimal teammate count and agent types |
+| `references/state-schema.md` | State file format documentation |
+| `references/agent-team-patterns.md` | Best practices for Agent Teams coordination |
