@@ -33,7 +33,7 @@ echo '<promise> SWARM COMPLETE </promise>' | grep -qiE '<promise>\s*SWARM\s+COMP
 
 ### Two-Phase System
 
-**Planning** (sequential, no code written): `start/SKILL.md` delegates to 4 agents in order — `swarm-researcher` → `swarm-requirements` → `swarm-architect` → `swarm-task-planner`. Each writes to `specs/<name>/`. User reviews before execution (unless `--yolo`).
+**Planning** (sequential, no code written): By default, `/ralph-swarm:start` runs only the research phase and pauses. The remaining phases are run incrementally via `/ralph-swarm:requirements`, `/ralph-swarm:design`, and `/ralph-swarm:tasks`, each pausing for review. Use `--full` to run all 4 phases in one shot. Each phase delegates to a specialized agent (`swarm-researcher` → `swarm-requirements` → `swarm-architect` → `swarm-task-planner`) and writes to `specs/<name>/`. User reviews before execution (unless `--yolo`).
 
 **Execution** (code written): Either sequential (one task at a time, stop hook re-injects) or swarm (Agent Teams with parallel worktrees). Both modes follow `execution-protocol.md`.
 
@@ -48,7 +48,7 @@ Parallelism is computed at runtime from the File Manifest in `tasks.md`, not dec
 ### State File
 
 `.ralph-swarm-state.json` is the single source of truth. Schema documented in `references/state-schema.md`. Key fields:
-- `phase`: planning → planning-review → execution → complete
+- `phase`: planning → planning-complete → planning-review → execution → complete
 - `execution.completedTasks` / `failedTasks`: arrays of task indices
 - `execution.teamCreated`: enforced by stop hook in swarm mode
 - `execution.snapshotCommit`: rollback point (git commit hash before first task)
@@ -62,6 +62,9 @@ Parallelism is computed at runtime from the File Manifest in `tasks.md`, not dec
 | `hooks/scripts/swarm-watcher.sh` | Stop hook: blocks exit, validates completion, re-injects prompts |
 | `hooks/scripts/load-context.sh` | SessionStart hook: loads state, detects orphaned worktrees |
 | `skills/start/SKILL.md` | Main entry point: parses args, runs planning, triggers execution |
+| `skills/requirements/SKILL.md` | Standalone requirements phase (incremental planning) |
+| `skills/design/SKILL.md` | Standalone design phase (incremental planning) |
+| `skills/tasks/SKILL.md` | Standalone task breakdown phase (incremental planning) |
 | `skills/start/execution-protocol.md` | Canonical execution protocol (sequential + swarm + merge) |
 | `skills/start/task-format.md` | Canonical task format spec (single source of truth) |
 | `references/state-schema.md` | Full `.ralph-swarm-state.json` schema documentation |
@@ -88,3 +91,5 @@ Changes to these files require updating their counterparts:
 | Commands | README.md Commands table AND `skills/help/SKILL.md` |
 | Agent types / fallback | `skills/swarm-coordinator/SKILL.md` AND `skills/team-composition/SKILL.md` |
 | Promise tag format | `swarm-watcher.sh` regex (line with `grep -qiE`) |
+| Planning phase logic | Each phase skill (`skills/requirements/`, `skills/design/`, `skills/tasks/`) AND `skills/start/SKILL.md` `--full` path |
+| `pausedAfter` field | `references/state-schema.md`, `hooks/scripts/swarm-watcher.sh`, `hooks/scripts/load-context.sh`, each phase skill, `skills/status/SKILL.md` |

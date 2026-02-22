@@ -22,14 +22,38 @@ COMMANDS
 
   /ralph-swarm:start <"goal"> [flags]
     The main entry point. Provide a goal in quotes and optional flags.
-    Planning runs automatically. Execution starts after review (or
-    immediately with --yolo).
+    By default, runs only the research phase and pauses for review.
+    Use --full to run all 4 planning phases at once (legacy behavior).
+    Use --yolo for --full + skip review + execute immediately.
 
     Examples:
       /ralph-swarm:start "add user authentication with JWT"
-      /ralph-swarm:start "refactor database layer" --swarm --teammates 4
+      /ralph-swarm:start "refactor database layer" --full --swarm
       /ralph-swarm:start "fix pagination bug" --yolo
-      /ralph-swarm:start "migrate to new API" --swarm --yolo --no-commit
+      /ralph-swarm:start "migrate to new API" --full --swarm --yolo --no-commit
+
+  /ralph-swarm:requirements
+    Run the requirements planning phase. Takes research output and
+    produces detailed requirements. Only works after research is complete.
+
+    Example:
+      /ralph-swarm:requirements
+
+  /ralph-swarm:design
+    Run the architecture/design planning phase. Takes research and
+    requirements output and produces an architecture document. Only
+    works after requirements are complete.
+
+    Example:
+      /ralph-swarm:design
+
+  /ralph-swarm:tasks
+    Run the task breakdown planning phase. Takes all prior spec files
+    and produces vertical feature slice tasks. Only works after design
+    is complete. Transitions to planning-review when done.
+
+    Example:
+      /ralph-swarm:tasks
 
   /ralph-swarm:go
     Resume execution after reviewing the generated plan. Only works when
@@ -68,12 +92,18 @@ COMMANDS
 
 FLAGS (for /ralph-swarm:start)
 
+  --full               Run all 4 planning phases (research, requirements,
+                       design, tasks) in one shot without pausing between
+                       phases. Without this flag, /start only runs research
+                       and pauses for review.
+                       Default: false
+
   --swarm              Enable parallel execution with Agent Teams.
                        Default: false (sequential mode)
 
   --yolo               Skip the planning review pause and go straight
-                       to execution. Commit behavior is unchanged
-                       (--commit remains true by default).
+                       to execution. Implies --full. Commit behavior is
+                       unchanged (--commit remains true by default).
                        Default: false
 
   --teammates <N>      Number of parallel agents in swarm mode.
@@ -110,6 +140,8 @@ EXECUTION MODES
 
 FLOW DIAGRAM
 
+  Incremental (default):
+
   /ralph-swarm:start "goal"
          |
          v
@@ -118,30 +150,30 @@ FLOW DIAGRAM
   +------------------+
          |
          v
-  +------------------+     +------------------+
-  |    Research       | --> |   Requirements   |
-  |  (swarm-researcher)    | (swarm-requirements)
-  +------------------+     +------------------+
-         |                        |
-         v                        v
-  +------------------+     +------------------+
-  |     Design       | <-- |                  |
-  |  (swarm-architect)     |                  |
-  +------------------+     +------------------+
-         |
+  +------------------+
+  |    Research       |  <-- pauses here (pausedAfter: "research")
+  |  (swarm-researcher)
+  +------------------+
+         |  /ralph-swarm:requirements
          v
   +------------------+
-  |   Task Planner   |
+  |   Requirements   |  <-- pauses here (pausedAfter: "requirements")
+  | (swarm-requirements)
+  +------------------+
+         |  /ralph-swarm:design
+         v
+  +------------------+
+  |     Design       |  <-- pauses here (pausedAfter: "design")
+  |  (swarm-architect)
+  +------------------+
+         |  /ralph-swarm:tasks
+         v
+  +------------------+
+  |   Task Planner   |  <-- pauses here (planning-review)
   | (swarm-task-planner)
   +------------------+
-         |
+         |  /ralph-swarm:go
          v
-  +------------------+
-  | Planning Review  |  <-- user reviews spec files
-  +------------------+
-         |
-         v  (/ralph-swarm:go or --yolo)
-         |
     +----+----+
     |         |
     v         v
@@ -157,13 +189,26 @@ FLOW DIAGRAM
          v
   <promise>SWARM COMPLETE</promise>
 
+  Full (--full or --yolo):
+
+  /ralph-swarm:start "goal" --full
+         |
+         v
+  All 4 phases run in sequence (no pauses)
+         |
+         v
+  Planning Review (or --yolo skips to execution)
+         |
+         v
+  Execution (same as above)
+
 STATE FILE
 
   .ralph-swarm-state.json in the project root tracks all swarm state.
   The stop hook (swarm-watcher.sh) reads this file to decide whether
   to re-inject the lead agent or allow the session to exit.
 
-  Phases: planning -> planning-review -> execution -> (complete/removed)
+  Phases: planning (with pauses) -> planning-review -> execution -> (complete/removed)
 
 SPEC FILES
 
@@ -190,10 +235,15 @@ REQUIREMENTS
 
 TIPS
 
+  - By default, /start only runs research and pauses. Review research.md
+    before proceeding to /requirements. This catches bad research early.
+  - Use --full if you trust the goal is well-defined and want speed.
   - Start without --swarm first to validate the approach, then re-run
     with --swarm for speed on larger tasks.
-  - Review and edit spec files during the planning-review pause. The
-    execution phase uses them as the source of truth.
+  - Review and edit spec files at each pause point. Each phase uses
+    prior phases as input — fixing early saves cascading errors.
+  - Re-running a phase (e.g., /requirements when already complete)
+    will reset and delete all downstream phases.
   - Use /ralph-swarm:status frequently during long executions to monitor
     progress.
   - If a swarm gets stuck, /ralph-swarm:cancel is safe — it preserves

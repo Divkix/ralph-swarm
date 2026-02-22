@@ -57,6 +57,21 @@ if [[ "$phase" == "execution" || "$phase" == "executing" ]]; then
     completed_tasks="?"
   fi
   progress="Tasks: ${completed_tasks}/${total_tasks} completed, iteration ${iteration:-0}/${max_iterations:-30}"
+elif [[ "$phase" == "planning" ]]; then
+  paused_after=$(read_state '.pausedAfter')
+  if [[ -n "$paused_after" && "$paused_after" != "null" ]]; then
+    # Compute the next command based on which phase we paused after
+    case "$paused_after" in
+      research)      next_cmd="/ralph-swarm:requirements" ;;
+      requirements)  next_cmd="/ralph-swarm:design" ;;
+      design)        next_cmd="/ralph-swarm:tasks" ;;
+      tasks)         next_cmd="/ralph-swarm:go" ;;
+      *)             next_cmd="/ralph-swarm:status" ;;
+    esac
+    progress="Phase: planning | Paused after: ${paused_after}. Next: ${next_cmd}"
+  else
+    progress="Phase: planning (in progress)"
+  fi
 else
   progress="Phase: ${phase}"
 fi

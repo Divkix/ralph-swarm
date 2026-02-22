@@ -8,6 +8,10 @@
 
 **One command. Full spec. Then build — sequentially or in parallel.**
 
+> By default, each planning phase pauses for review. Use `--full` to run all phases at once.
+>
+> `Goal → Research → (pause) → Requirements → (pause) → Design → (pause) → Tasks → Execution`
+
 ---
 
 ## What Is This?
@@ -85,6 +89,9 @@ Plans, skips review, immediately fires up a team of agents. No human in the loop
 | Command | Description |
 |---|---|
 | `/ralph-swarm:start <"goal"> [flags]` | Begin planning + execution |
+| `/ralph-swarm:requirements` | Run the requirements planning phase |
+| `/ralph-swarm:design` | Run the design planning phase |
+| `/ralph-swarm:tasks` | Run the task breakdown planning phase |
 | `/ralph-swarm:go` | Resume execution after reviewing the spec |
 | `/ralph-swarm:status` | Show current progress |
 | `/ralph-swarm:cancel` | Abort the session, clean up state |
@@ -97,6 +104,7 @@ Plans, skips review, immediately fires up a team of agents. No human in the loop
 
 | Flag | Default | Description |
 |---|---|---|
+| `--full` | `false` | Run all 4 planning phases in one shot without pausing |
 | `--swarm` | `false` | Enable parallel execution via Agent Teams |
 | `--yolo` | `false` | Skip spec review, go straight to execution |
 | `--teammates N` | `auto` | Number of parallel agents (max 10). Auto = `min(task_count, 5)` |
@@ -213,7 +221,7 @@ An Agent Team is created. Independent tasks run in parallel across multiple agen
 
 `.ralph-swarm-state.json` in the project root tracks all session state:
 
-- Current phase (`planning` → `planning-review` → `execution` → `complete`)
+- Current phase (`planning` → `planning-complete` → `planning-review` → `execution` → `complete`)
 - Planning progress (which sub-phases are done)
 - Execution progress (completed/failed tasks, iteration count)
 - Configuration flags
@@ -301,6 +309,9 @@ ralph-swarm/
         │   ├── SKILL.md
         │   ├── execution-protocol.md
         │   └── task-format.md
+        ├── requirements/SKILL.md ← /ralph-swarm:requirements
+        ├── design/SKILL.md      ← /ralph-swarm:design
+        ├── tasks/SKILL.md       ← /ralph-swarm:tasks
         ├── go/SKILL.md          ← /ralph-swarm:go
         ├── status/SKILL.md      ← /ralph-swarm:status
         ├── cancel/SKILL.md      ← /ralph-swarm:cancel

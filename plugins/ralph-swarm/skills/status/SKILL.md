@@ -47,6 +47,18 @@ Tasks:         <complete | pending | in-progress | failed>    <specPath>/tasks.m
 
 For each phase that is `"complete"`, check if the corresponding file actually exists using the Read tool. If the file is missing despite the status being "complete", append `[FILE MISSING]` as a warning.
 
+If `pausedAfter` is set (non-null) and `phase` is `"planning"`:
+
+1. Show which phase we're paused after:
+   ```
+   Paused after:  <pausedAfter>
+   ```
+2. Compute and display the next command:
+   - `"research"` → `Next: /ralph-swarm:requirements`
+   - `"requirements"` → `Next: /ralph-swarm:design`
+   - `"design"` → `Next: /ralph-swarm:tasks`
+   - `"tasks"` → `Next: /ralph-swarm:go`
+
 ## Step 4: Display Execution Progress (if applicable)
 
 Only display this section if `phase` is `"execution"` or there is execution data with `totalTasks > 0`.
@@ -96,7 +108,10 @@ Team not yet initialized or already cleaned up.
 
 Based on the current phase, suggest what the user can do:
 
-- If phase is `"planning"`: "Planning in progress. Wait for completion."
+- If phase is `"planning"` and `pausedAfter` is set:
+  - Compute the next command (research→requirements, requirements→design, design→tasks, tasks→go).
+  - "Planning paused after `<pausedAfter>`. Run `/ralph-swarm:<next>` to continue, or edit spec files first."
+- If phase is `"planning"` and `pausedAfter` is null: "Planning in progress. Wait for completion."
 - If phase is `"planning-review"`: "Plan ready for review. Run `/ralph-swarm:go` to start execution or edit spec files first."
 - If phase is `"planning-complete"`: "Planning complete. Run `/ralph-swarm:go` to start execution."
 - If phase is `"execution"`: "Execution in progress. The swarm will continue automatically."

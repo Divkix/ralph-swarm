@@ -1,6 +1,6 @@
 ---
 description: Plan and execute a task with optional Agent Teams parallelism
-argument-hint: <"goal"> [--swarm] [--yolo] [--teammates <n>] [--agent-type <type>] [--max-iterations <n>] [--commit] [--no-commit]
+argument-hint: <"goal"> [--full] [--swarm] [--yolo] [--teammates <n>] [--agent-type <type>] [--max-iterations <n>] [--commit] [--no-commit]
 allowed-tools: "*"
 ---
 
@@ -23,8 +23,9 @@ Parse `$ARGUMENTS` to extract the following:
 |-----------|----------------|---------|
 | **goal** | First quoted string (e.g., `"implement user auth"`) or all text before the first `--` flag | REQUIRED — if missing, error: "Usage: `/ralph-swarm:start \"your goal here\"` [flags]" |
 | **name** | Derive from goal: lowercase, kebab-case, first 3-4 meaningful words (strip articles/prepositions). E.g., "implement user authentication flow" -> "implement-user-auth" | derived |
+| **--full** | Boolean flag, present = true. Run all 4 planning phases without pausing. | `false` |
 | **--swarm** | Boolean flag, present = true | `false` |
-| **--yolo** | Boolean flag, present = true | `false` |
+| **--yolo** | Boolean flag, present = true. Implies `--full`. | `false` |
 | **--teammates N** | Integer following the flag | `"auto"` |
 | **--agent-type TYPE** | String following the flag | `"auto"` |
 | **--max-iterations N** | Integer following the flag | `30` |
@@ -71,11 +72,13 @@ Write `.ralph-swarm-state.json` in the project root with this exact structure (u
   "goal": "<goal>",
   "phase": "planning",
   "mode": "sequential",
+  "pausedAfter": null,
   "specPath": "<absolute-path-to-project>/specs/<name>/",
   "teamName": "ralph-<name>",
   "flags": {
     "swarm": false,
     "yolo": false,
+    "full": false,
     "commit": true,
     "teammates": "auto",
     "agentType": "auto"
@@ -115,25 +118,56 @@ Create the directory `./specs/<name>/` using Bash:
 mkdir -p ./specs/<name>/
 ```
 
-## Step 4: Run Planning Phases (Sequential)
+## Step 4: Run Planning Phases
 
-Execute these four phases in strict order. Each phase delegates to a specialized agent using the **Task tool** (subagent). Pass the following context to EVERY agent:
+**Important:** If `--yolo` is set, it implies `--full`. Set `flags.full` to `true` in the state file if `--yolo` is `true`.
+
+There are two code paths depending on the `--full` flag:
+
+### Path A: Incremental Planning (default, no `--full`)
+
+Run **only** the research phase. The remaining phases are run via separate commands (`/ralph-swarm:requirements`, `/ralph-swarm:design`, `/ralph-swarm:tasks`).
+
+#### Phase 4a: Research
+
+- Before delegating: set `planning.research` to `"in-progress"` in the state file
+- Delegate to `swarm-researcher` agent type (subagent_type: `swarm-researcher`)
+- Instruction: "Research the codebase and external sources for: `<goal>`. Save findings to `<specPath>/research.md`. Follow the research protocol exactly. Signal completion with RESEARCH_COMPLETE."
+- Pass: goal, CLAUDE.md content, project root path
+- After completion: Read `<specPath>/research.md` to verify it was created
+- Update state: set `planning.research` to `"complete"`
+- Set `pausedAfter` to `"research"` in the state file
+- Display to the user:
+  ```
+  Research phase complete.
+  Review the output at: <specPath>/research.md
+
+  Next: Run /ralph-swarm:requirements to continue planning.
+  Or edit the research file first, then run /ralph-swarm:requirements.
+  ```
+- **STOP HERE.** The stop hook will allow exit because `pausedAfter` is set.
+
+### Path B: Full Planning (`--full` or `--yolo`)
+
+Run all four phases in strict order. Each phase delegates to a specialized agent using the **Task tool** (subagent). Pass the following context to EVERY agent:
 
 - The full **goal**
 - The **CLAUDE.md** content (if it exists)
 - The **spec path** for output
 - Any **output from prior phases** (e.g., research.md feeds into requirements)
 
-### Phase 4a: Research
+#### Phase 4a: Research
 
+- Before delegating: set `planning.research` to `"in-progress"` in the state file
 - Delegate to `swarm-researcher` agent type (subagent_type: `swarm-researcher`)
 - Instruction: "Research the codebase and external sources for: `<goal>`. Save findings to `<specPath>/research.md`. Follow the research protocol exactly. Signal completion with RESEARCH_COMPLETE."
 - Pass: goal, CLAUDE.md content, project root path
 - After completion: Read `<specPath>/research.md` to verify it was created
 - Update state: set `planning.research` to `"complete"`
 
-### Phase 4b: Requirements
+#### Phase 4b: Requirements
 
+- Before delegating: set `planning.requirements` to `"in-progress"` in the state file
 - Delegate to `swarm-requirements` agent type if it exists, otherwise use a general-purpose agent
 - Instruction: "Based on the research at `<specPath>/research.md`, produce detailed requirements for: `<goal>`. Save to `<specPath>/requirements.md`."
 - The requirements.md must include:
@@ -146,8 +180,9 @@ Execute these four phases in strict order. Each phase delegates to a specialized
 - After completion: Read `<specPath>/requirements.md` to verify
 - Update state: set `planning.requirements` to `"complete"`
 
-### Phase 4c: Architecture/Design
+#### Phase 4c: Architecture/Design
 
+- Before delegating: set `planning.design` to `"in-progress"` in the state file
 - Delegate to `swarm-architect` agent type if it exists, otherwise use a general-purpose agent
 - Instruction: "Based on the research at `<specPath>/research.md` and requirements at `<specPath>/requirements.md`, produce an architecture/design document for: `<goal>`. Save to `<specPath>/design.md`."
 - The design.md must include:
@@ -161,8 +196,9 @@ Execute these four phases in strict order. Each phase delegates to a specialized
 - After completion: Read `<specPath>/design.md` to verify
 - Update state: set `planning.design` to `"complete"`
 
-### Phase 4d: Task Breakdown
+#### Phase 4d: Task Breakdown
 
+- Before delegating: set `planning.tasks` to `"in-progress"` in the state file
 - Delegate to `swarm-task-planner` agent type if it exists, otherwise use a general-purpose agent
 - Instruction: "Based on all specs in `<specPath>/`, break the work into vertical feature slices for: `<goal>`. Save to `<specPath>/tasks.md`."
 - The tasks.md must follow the format defined in [task-format.md](./task-format.md).
@@ -172,11 +208,13 @@ Execute these four phases in strict order. Each phase delegates to a specialized
 
 ## Step 5: Commit Spec Files (if --commit)
 
+**Only applies to Path B (--full).** In Path A, commits are handled by `/ralph-swarm:tasks`.
+
 If the `commit` flag is `true`:
 
-1. Stage all files in `./specs/<name>/`:
+1. Stage all spec files (use the absolute `specPath` from the state file):
    ```
-   git add ./specs/<name>/
+   git add <specPath>/research.md <specPath>/requirements.md <specPath>/design.md <specPath>/tasks.md
    ```
 2. Commit with message:
    ```
@@ -186,13 +224,15 @@ If the `commit` flag is `true`:
 
 ## Step 6: Decide Next Action
 
+**Only applies to Path B (--full).** Path A already stopped after research.
+
 ### If --yolo is true:
 
-Proceed directly to **Step 7 (Execution Phase)**. Do not pause.
+Set `pausedAfter` to `"tasks"` in the state file, then proceed directly to **Step 7 (Execution Phase)**. Do not pause.
 
 ### If --yolo is false:
 
-1. Update state: set `phase` to `"planning-review"`
+1. Update state: set `phase` to `"planning-review"`, set `pausedAfter` to `"tasks"`
 2. Display a summary to the user:
    - Print the total number of tasks from tasks.md
    - Print a brief one-line summary of each task (number + title)

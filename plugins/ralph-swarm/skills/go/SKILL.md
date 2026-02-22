@@ -54,6 +54,7 @@ Resume swarm execution after the planning-review pause. This command picks up wh
 Update `.ralph-swarm-state.json` with these changes:
 
 - Set `phase` to `"execution"`
+- Set `pausedAfter` to `null`
 - Set `execution.totalTasks` to the total task count
 - Set `execution.taskIndex` to `0`
 - Set `execution.completedTasks` to `[]`

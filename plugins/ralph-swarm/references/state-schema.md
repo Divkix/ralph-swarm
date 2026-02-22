@@ -12,9 +12,11 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
   "mode": "string",
   "specPath": "string",
   "teamName": "string",
+  "pausedAfter": "string | null",
   "flags": {
     "swarm": "boolean",
     "yolo": "boolean",
+    "full": "boolean",
     "commit": "boolean",
     "teammates": "number | \"auto\"",
     "agentType": "string"
@@ -80,6 +82,18 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
   - `"sequential"` — The lead agent executes tasks one by one, no teammates.
   - `"swarm"` — Agent Teams is used; multiple teammates execute tasks in parallel.
 - **Updated:** Set during planning based on user flags or auto-detection. Does not change once execution starts.
+
+#### `pausedAfter`
+- **Type:** `string | null` (enum: `null`, `"research"`, `"requirements"`, `"design"`, `"tasks"`)
+- **Default:** `null`
+- **Description:** Indicates which planning phase just completed, causing the session to pause for user review. When set (non-null) and `phase == "planning"`, the stop hook allows the session to exit instead of blocking. This enables the incremental planning flow where each phase is a separate command.
+  - `null` — Planning is actively running (not paused between phases).
+  - `"research"` — Research phase completed. Next command: `/ralph-swarm:requirements`.
+  - `"requirements"` — Requirements phase completed. Next command: `/ralph-swarm:design`.
+  - `"design"` — Design phase completed. Next command: `/ralph-swarm:tasks`.
+  - `"tasks"` — Task breakdown completed. Next command: `/ralph-swarm:go`.
+- **Updated:** Set after each planning phase completes (unless `--full` flag runs all phases at once). Reset to `null` when the next phase begins.
+- **Lifecycle:** Created as `null` during initialization. Set to a phase name after that phase completes and the session should pause. The next phase skill resets it to `null` before starting work, then sets it to its own phase name on completion.
 
 ### `planning` Object
 
@@ -224,7 +238,13 @@ Configuration flags parsed from CLI arguments that modify coordinator behavior.
 #### `flags.yolo`
 - **Type:** `boolean`
 - **Default:** `false`
-- **Description:** When `true`, skip the `"planning-review"` phase entirely. Go directly from `"planning"` to `"execution"` without waiting for user approval. Useful for trusted, well-defined goals where human review is unnecessary.
+- **Description:** When `true`, skip the `"planning-review"` phase entirely. Go directly from `"planning"` to `"execution"` without waiting for user approval. Useful for trusted, well-defined goals where human review is unnecessary. Implies `--full`.
+- **Updated:** Set once from CLI flags during initialization.
+
+#### `flags.full`
+- **Type:** `boolean`
+- **Default:** `false`
+- **Description:** When `true`, run all four planning phases (research, requirements, design, tasks) in a single `/ralph-swarm:start` invocation without pausing between phases. This is the legacy behavior. When `false` (default), `/ralph-swarm:start` runs only the research phase and pauses, requiring separate commands (`/ralph-swarm:requirements`, `/ralph-swarm:design`, `/ralph-swarm:tasks`) for each subsequent phase. `--yolo` implies `--full`.
 - **Updated:** Set once from CLI flags during initialization.
 
 #### `flags.commit`
@@ -263,11 +283,23 @@ Configuration flags parsed from CLI arguments that modify coordinator behavior.
 
 ```
 Initialization:
-  name, goal, phase="planning", mode, flags set
+  name, goal, phase="planning", pausedAfter=null, mode, flags set
 
-Planning:
-  planning.* fields transition: pending -> in-progress -> complete
+Planning (incremental, default):
+  /start: research runs -> pausedAfter="research" -> session exits
+  /requirements: requirements runs -> pausedAfter="requirements" -> session exits
+  /design: design runs -> pausedAfter="design" -> session exits
+  /tasks: tasks runs -> phase="planning-review", pausedAfter="tasks" -> session exits
+
+Planning (--full or --yolo):
+  All four planning.* fields transition: pending -> in-progress -> complete
+  pausedAfter="tasks" after all complete
   phase transitions: "planning" -> "planning-complete"
+
+Note: The incremental path skips "planning-complete" because /ralph-swarm:tasks
+(the final phase skill) transitions directly to "planning-review". The "planning-complete"
+intermediate state only exists in the --full path, where start/SKILL.md needs a brief
+state between finishing all planning and deciding the next step (review vs execution).
 
 Review (skipped if flags.yolo):
   If --yolo: phase transitions: "planning-complete" -> "execution"

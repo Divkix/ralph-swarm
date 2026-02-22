@@ -110,6 +110,14 @@ if [[ "$phase" == "planning-review" ]]; then
   exit 0
 fi
 
+# If paused between planning phases, allow exit.
+if [[ "$phase" == "planning" ]]; then
+  paused_after=$(read_state '.pausedAfter')
+  if [[ -n "$paused_after" && "$paused_after" != "null" ]]; then
+    exit 0
+  fi
+fi
+
 # If the agent already set phase to "complete", verify task counts before trusting it.
 if [[ "$phase" == "complete" ]]; then
   read -r completed failed total <<< "$(read_task_counts)"
@@ -203,6 +211,36 @@ EOF
     fi
     exit 0
   fi
+fi
+
+# ── 5b. Planning phase re-injection — resume failed/interrupted planning ──────
+if [[ "$phase" == "planning" ]]; then
+  # Determine which planning sub-phase needs attention
+  research_status=$(read_state '.planning.research')
+  requirements_status=$(read_state '.planning.requirements')
+  design_status=$(read_state '.planning.design')
+  tasks_status=$(read_state '.planning.tasks')
+
+  prompt="PLANNING PHASE INTERRUPTED - Follow these steps in order:"
+  prompt+=$'\n'"1. Read .ralph-swarm-state.json to check planning sub-phase statuses."
+  prompt+=$'\n'"2. Identify the sub-phase that is 'in-progress' or 'failed'."
+  prompt+=$'\n'"3. If a sub-phase is 'failed': report the error to the user and stop."
+  prompt+=$'\n'"4. If a sub-phase is 'in-progress': resume it by re-delegating to the appropriate agent."
+  prompt+=$'\n'"5. After completion, update the state file and continue to the next planning phase."
+  prompt+=$'\n'"Current statuses: research=${research_status:-pending}, requirements=${requirements_status:-pending}, design=${design_status:-pending}, tasks=${tasks_status:-pending}"
+
+  if has_jq; then
+    jq -n \
+      --arg decision "block" \
+      --arg reason "$prompt" \
+      --arg sysMsg "Swarm iteration ${new_iteration} — planning phase interrupted" \
+      '{"decision":$decision,"reason":$reason,"systemMessage":$sysMsg}'
+  else
+    cat <<EOF
+{"decision":"block","reason":"${prompt}","systemMessage":"Swarm iteration ${new_iteration} — planning phase interrupted"}
+EOF
+  fi
+  exit 0
 fi
 
 if [[ "$swarm_mode" == "true" ]]; then
