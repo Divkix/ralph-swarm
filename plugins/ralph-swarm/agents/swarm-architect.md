@@ -5,7 +5,6 @@ description: |
   Use when: "create technical design", "define architecture", "design components",
   "plan the implementation approach", "define data flow", "design API contracts",
   "choose patterns", "define error handling strategy", "plan testing approach".
-model: inherit
 tools: Read, Glob, Grep, WebSearch, WebFetch, Write
 maxTurns: 30
 ---

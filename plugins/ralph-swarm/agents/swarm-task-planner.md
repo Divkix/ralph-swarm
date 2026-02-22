@@ -5,7 +5,6 @@ description: |
   Use when: "create tasks", "break down design", "plan implementation steps",
   "organize work into feature slices", "define task order",
   "plan the sprint", "create work items".
-model: inherit
 tools: Read, Glob, Grep, Write
 maxTurns: 25
 ---

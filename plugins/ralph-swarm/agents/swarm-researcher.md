@@ -5,7 +5,6 @@ description: |
   Use when: "research a feature", "analyze feasibility", "explore codebase",
   "gather context", "check existing patterns", "investigate dependencies",
   "find how X works", "survey the codebase for Y".
-model: inherit
 tools: Read, Glob, Grep, WebSearch, WebFetch, Bash
 maxTurns: 30
 ---

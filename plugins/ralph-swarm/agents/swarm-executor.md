@@ -5,7 +5,6 @@ description: |
   Use when: "execute a task", "implement task", "complete task",
   "build this component", "write the code for task X",
   "implement TASK-xxx", "pick up a task and run it".
-model: inherit
 maxTurns: 40
 ---
 

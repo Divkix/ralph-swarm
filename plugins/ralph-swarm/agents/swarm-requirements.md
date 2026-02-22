@@ -5,7 +5,6 @@ description: |
   Use when: "generate requirements", "write user stories", "define acceptance criteria",
   "scope the work", "define what done looks like", "translate goals to specs",
   "clarify requirements", "identify edge cases".
-model: inherit
 tools: Read, Glob, Grep, WebSearch, WebFetch, Write
 maxTurns: 25
 ---
