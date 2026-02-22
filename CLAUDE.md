@@ -74,7 +74,7 @@ Parallelism is computed at runtime from the File Manifest in `tasks.md`, not dec
 - **Explicit file staging**: `git add <file1> <file2>` only. `git add -A` and `git add .` are prohibited in all prompts.
 - **Re-injection prompts**: always numbered step lists, never prose paragraphs. LLMs comply better with structured instructions.
 - **State file locking**: `mkdir`-based spinlock in `swarm-watcher.sh` protects concurrent writes. Guard flag `_LOCK_HELD` prevents the exit trap from releasing an unacquired lock.
-- **Version**: lives in `.claude-plugin/marketplace.json` only (removed from `plugin.json` per commit `61c4451`).
+- **Version**: lives in `plugin.json` only (official docs: plugin.json always wins, avoid duplicating in marketplace.json).
 
 ## Cross-File Dependencies
 
