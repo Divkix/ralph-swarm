@@ -52,6 +52,8 @@ Instead of manually grouping tasks into phases at planning time, parallelism is 
 
 The same `tasks.md` works for both sequential and swarm execution. The format is mode-independent.
 
+When `--swarm` is set, planning phases also leverage intra-phase parallelism (see [Swarm (`--swarm`)](#swarm---swarm) for details).
+
 ## Commands
 
 | Command | Description |
@@ -66,7 +68,7 @@ The same `tasks.md` works for both sequential and swarm execution. The format is
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--swarm` | `false` | Enable parallel execution with Agent Teams |
+| `--swarm` | `false` | Enable parallel planning (intra-phase) and parallel execution (Agent Teams) |
 | `--yolo` | `false` | Skip plan review, go straight to execution |
 | `--teammates N` | `auto` | Number of parallel agents (swarm mode) |
 | `--agent-type TYPE` | `auto` | Agent type for teammates (e.g., `golang-pro`) |
@@ -85,6 +87,8 @@ Best for: small projects, quick tasks, when you want tight control.
 ### Swarm (`--swarm`)
 
 The coordinator spawns multiple executor agents in isolated git worktrees. It computes parallel batches from the File Manifest in tasks.md and assigns non-conflicting tasks to teammates simultaneously.
+
+When `--swarm` is set, planning phases also run in parallel: research spawns 3 focused agents (codebase structure, dependencies, testing patterns), requirements spawns 2 agents (functional, non-functional), and design spawns 2 agents (architecture, contracts). Each group runs concurrently within its phase, and outputs are merged into the canonical spec file. Cross-phase ordering remains strictly sequential.
 
 Best for: larger projects with many independent feature slices, when you want speed.
 

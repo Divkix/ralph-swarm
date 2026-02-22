@@ -105,7 +105,7 @@ Plans, skips review, immediately fires up a team of agents. No human in the loop
 | Flag | Default | Description |
 |---|---|---|
 | `--full` | `false` | Run all 4 planning phases in one shot without pausing |
-| `--swarm` | `false` | Enable parallel execution via Agent Teams |
+| `--swarm` | `false` | Enable parallel planning (intra-phase) and parallel execution (Agent Teams) |
 | `--yolo` | `false` | Skip spec review, go straight to execution |
 | `--teammates N` | `auto` | Number of parallel agents (max 10). Auto = `min(task_count, 5)` |
 | `--agent-type TYPE` | `auto` | Agent type for executors (e.g., `typescript-pro`, `golang-pro`) |
@@ -130,6 +130,8 @@ Four sub-phases run in strict order. Each delegates to a specialized agent:
 
 After planning completes, you review the spec files (unless `--yolo` is set).
 
+When `--swarm` is set, planning phases leverage intra-phase parallelism (see [Swarm (Parallel)](#swarm-parallel) for details).
+
 ### Execution Phase
 
 **Sequential mode (default):**
@@ -137,6 +139,8 @@ Tasks execute one at a time in dependency order. The stop hook re-injects the le
 
 **Swarm mode (`--swarm`):**
 An Agent Team is created. Independent tasks run in parallel across multiple agents in isolated worktrees. Dependent tasks wait for their blockers to complete.
+
+When `--swarm` is set, planning phases also run in parallel: research spawns 3 focused agents (codebase structure, dependencies, testing patterns), requirements spawns 2 agents (functional, non-functional), and design spawns 2 agents (architecture, contracts). Each group runs concurrently within its phase, and the lead agent merges their outputs into the canonical spec file. Cross-phase ordering remains strictly sequential.
 
 ### Flow
 

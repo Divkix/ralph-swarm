@@ -4,12 +4,12 @@
     "name": "Divanshu Chauhan"
   },
   "metadata": {
-    "description": "Spec-driven development with optional Agent Teams parallel execution"
+    "description": "Spec-driven development with intra-phase parallel planning and Agent Teams parallel execution"
   },
   "plugins": [
     {
       "name": "ralph-swarm",
-      "description": "Spec-driven planning with persistent sequential or parallel execution via Agent Teams. One command to plan, review, and ship.",
+      "description": "Spec-driven planning with intra-phase parallel planning and persistent parallel execution via Agent Teams. One command to plan, review, and ship.",
       "author": {
         "name": "Divanshu Chauhan"
       },
