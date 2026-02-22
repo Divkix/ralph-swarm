@@ -52,24 +52,49 @@ If `planning.design` is already `"complete"`:
 1. Check if `CLAUDE.md` exists in the project root. If it does, read it with the Read tool.
 2. Read `<specPath>/research.md` using the Read tool.
 3. Read `<specPath>/requirements.md` using the Read tool.
-4. If either file does not exist or is empty, output an error identifying the missing file and stop.
+4. Read `flags.swarm` from the state file (parsed in Step 1).
+5. If either spec file does not exist or is empty, output an error identifying the missing file and stop.
 
 ## Step 4: Execute Design Phase
 
 1. Set `pausedAfter` to `null` in the state file (clear any previous pause).
 2. Set `planning.design` to `"in-progress"` in the state file.
 3. Write the updated state file.
+
+**If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-architect` agent type:
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Architecture & data**: component design, data models, migrations, data flow, parallelization analysis | `<specPath>/design-architecture.md` |
+| B | **Contracts & strategy**: API contracts, interfaces, error handling strategy, testing strategy, design decisions | `<specPath>/design-contracts.md` |
+
+- Launch both as parallel Task calls (in a single message with 2 tool uses).
+- Each agent's instruction: "Based on the research at `<specPath>/research.md` and requirements at `<specPath>/requirements.md`, produce a design document for: `<goal>`. Focus specifically on **<focus area>**. Save to `<output file>`."
+- Pass to each: goal, CLAUDE.md content (if exists), research.md content, requirements.md content
+- After both complete, **merge** the partial files:
+  1. Read both partial files
+  2. Deduplicate overlapping design decisions
+  3. Resolve any contradictions (prefer the agent whose focus area is more relevant)
+  4. Combine into `<specPath>/design.md` preserving the canonical format
+  5. Delete the partial files (`design-architecture.md`, `design-contracts.md`)
+- If one agent fails, merge the successful output and warn. If both fail, set phase to `"failed"` and stop.
+
+**If `flags.swarm` is false (default):** Single-agent delegation:
+
 4. Delegate to the `swarm-architect` agent type (subagent_type: `ralph-swarm:swarm-architect`) via the Task tool:
    - Instruction: "Based on the research at `<specPath>/research.md` and requirements at `<specPath>/requirements.md`, produce an architecture/design document for: `<goal>`. Save to `<specPath>/design.md`."
-   - The design.md must include:
-     - High-level architecture (components, data flow)
-     - File-by-file change plan (which files to create/modify, what changes)
-     - Interface contracts (function signatures, types, API shapes)
-     - Error handling strategy
-     - Testing strategy (what to test, how)
-     - Migration/rollback plan if applicable
    - Pass: goal, CLAUDE.md content (if exists), research.md content, requirements.md content
-5. After the agent completes, verify `<specPath>/design.md` exists by reading it.
+
+**Regardless of path**, the design.md must include:
+   - High-level architecture (components, data flow)
+   - File-by-file change plan (which files to create/modify, what changes)
+   - Interface contracts (function signatures, types, API shapes)
+   - Error handling strategy
+   - Testing strategy (what to test, how)
+   - Migration/rollback plan if applicable
+
+**After delegation (both paths):**
+5. Verify `<specPath>/design.md` exists by reading it.
 6. If verification fails, set `planning.design` to `"failed"` and stop with an error.
 7. Set `planning.design` to `"complete"` in the state file.
 

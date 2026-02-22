@@ -131,10 +131,28 @@ Run **only** the research phase. The remaining phases are run via separate comma
 #### Phase 4a: Research
 
 - Before delegating: set `planning.research` to `"in-progress"` in the state file
+
+**If `flags.swarm` is true:** Spawn 3 parallel Task calls, all using `swarm-researcher` agent type:
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Codebase structure**: file organization, modules, entry points, existing patterns, conventions, build system | `<specPath>/research-structure.md` |
+| B | **Dependencies & external**: packages, versions, APIs, services, config, known issues, deprecations | `<specPath>/research-dependencies.md` |
+| C | **Testing & quality**: test infrastructure, coverage patterns, CI/CD, error handling patterns, code quality | `<specPath>/research-testing.md` |
+
+- Launch all 3 as parallel Task calls (in a single message with 3 tool uses).
+- Each agent's instruction: "Research the codebase for: `<goal>`. Focus specifically on **<focus area>**. Save findings to `<output file>`. Follow the research protocol exactly."
+- Pass to each: goal, CLAUDE.md content, project root path
+- After all complete: Follow the [Merge Protocol](#merge-protocol) to combine the 3 partial files into `<specPath>/research.md`, then delete the partial files.
+
+**If `flags.swarm` is false (default):** Single-agent delegation:
+
 - Delegate to `swarm-researcher` agent type (subagent_type: `swarm-researcher`)
 - Instruction: "Research the codebase and external sources for: `<goal>`. Save findings to `<specPath>/research.md`. Follow the research protocol exactly. Signal completion with RESEARCH_COMPLETE."
 - Pass: goal, CLAUDE.md content, project root path
-- After completion: Read `<specPath>/research.md` to verify it was created
+
+**After delegation (both paths):**
+- Read `<specPath>/research.md` to verify it was created
 - Update state: set `planning.research` to `"complete"`
 - Set `pausedAfter` to `"research"` in the state file
 - Display to the user:
@@ -159,41 +177,95 @@ Run all four phases in strict order. Each phase delegates to a specialized agent
 #### Phase 4a: Research
 
 - Before delegating: set `planning.research` to `"in-progress"` in the state file
+
+**If `flags.swarm` is true:** Spawn 3 parallel Task calls, all using `swarm-researcher` agent type:
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Codebase structure**: file organization, modules, entry points, existing patterns, conventions, build system | `<specPath>/research-structure.md` |
+| B | **Dependencies & external**: packages, versions, APIs, services, config, known issues, deprecations | `<specPath>/research-dependencies.md` |
+| C | **Testing & quality**: test infrastructure, coverage patterns, CI/CD, error handling patterns, code quality | `<specPath>/research-testing.md` |
+
+- Launch all 3 as parallel Task calls (in a single message with 3 tool uses).
+- Each agent's instruction: "Research the codebase for: `<goal>`. Focus specifically on **<focus area>**. Save findings to `<output file>`. Follow the research protocol exactly."
+- Pass to each: goal, CLAUDE.md content, project root path
+- After all complete: Follow the [Merge Protocol](#merge-protocol) to combine the 3 partial files into `<specPath>/research.md`, then delete the partial files.
+
+**If `flags.swarm` is false (default):** Single-agent delegation:
+
 - Delegate to `swarm-researcher` agent type (subagent_type: `swarm-researcher`)
 - Instruction: "Research the codebase and external sources for: `<goal>`. Save findings to `<specPath>/research.md`. Follow the research protocol exactly. Signal completion with RESEARCH_COMPLETE."
 - Pass: goal, CLAUDE.md content, project root path
-- After completion: Read `<specPath>/research.md` to verify it was created
+
+**After delegation (both paths):**
+- Read `<specPath>/research.md` to verify it was created
 - Update state: set `planning.research` to `"complete"`
 
 #### Phase 4b: Requirements
 
 - Before delegating: set `planning.requirements` to `"in-progress"` in the state file
+
+**If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-requirements` agent type:
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Functional**: user stories (happy paths), core acceptance criteria, scope boundaries, dependencies between features | `<specPath>/requirements-functional.md` |
+| B | **Non-functional & edge cases**: edge case analysis, performance/security NFRs, error scenarios, backwards compatibility | `<specPath>/requirements-nonfunctional.md` |
+
+- Launch both as parallel Task calls (in a single message with 2 tool uses).
+- Each agent's instruction: "Based on the research at `<specPath>/research.md`, produce requirements for: `<goal>`. Focus specifically on **<focus area>**. Save to `<output file>`."
+- Pass to each: goal, CLAUDE.md content, research.md content
+- After both complete: Follow the [Merge Protocol](#merge-protocol) to combine the 2 partial files into `<specPath>/requirements.md`, then delete the partial files.
+
+**If `flags.swarm` is false (default):** Single-agent delegation:
+
 - Delegate to `swarm-requirements` agent type if it exists, otherwise use a general-purpose agent
 - Instruction: "Based on the research at `<specPath>/research.md`, produce detailed requirements for: `<goal>`. Save to `<specPath>/requirements.md`."
-- The requirements.md must include:
+- Pass: goal, CLAUDE.md content, research.md content
+
+**Regardless of path**, the requirements.md must include:
   - Functional requirements (numbered, testable)
   - Non-functional requirements (performance, security, compatibility)
   - Acceptance criteria for each requirement
   - Out-of-scope items (explicit exclusions)
   - Dependencies on external systems or libraries
-- Pass: goal, CLAUDE.md content, research.md content
-- After completion: Read `<specPath>/requirements.md` to verify
+
+**After delegation (both paths):**
+- Read `<specPath>/requirements.md` to verify
 - Update state: set `planning.requirements` to `"complete"`
 
 #### Phase 4c: Architecture/Design
 
 - Before delegating: set `planning.design` to `"in-progress"` in the state file
+
+**If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-architect` agent type:
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Architecture & data**: component design, data models, migrations, data flow, parallelization analysis | `<specPath>/design-architecture.md` |
+| B | **Contracts & strategy**: API contracts, interfaces, error handling strategy, testing strategy, design decisions | `<specPath>/design-contracts.md` |
+
+- Launch both as parallel Task calls (in a single message with 2 tool uses).
+- Each agent's instruction: "Based on the research at `<specPath>/research.md` and requirements at `<specPath>/requirements.md`, produce a design document for: `<goal>`. Focus specifically on **<focus area>**. Save to `<output file>`."
+- Pass to each: goal, CLAUDE.md content, research.md content, requirements.md content
+- After both complete: Follow the [Merge Protocol](#merge-protocol) to combine the 2 partial files into `<specPath>/design.md`, then delete the partial files.
+
+**If `flags.swarm` is false (default):** Single-agent delegation:
+
 - Delegate to `swarm-architect` agent type if it exists, otherwise use a general-purpose agent
 - Instruction: "Based on the research at `<specPath>/research.md` and requirements at `<specPath>/requirements.md`, produce an architecture/design document for: `<goal>`. Save to `<specPath>/design.md`."
-- The design.md must include:
+- Pass: goal, CLAUDE.md content, research.md content, requirements.md content
+
+**Regardless of path**, the design.md must include:
   - High-level architecture (components, data flow)
   - File-by-file change plan (which files to create/modify, what changes)
   - Interface contracts (function signatures, types, API shapes)
   - Error handling strategy
   - Testing strategy (what to test, how)
   - Migration/rollback plan if applicable
-- Pass: goal, CLAUDE.md content, research.md content, requirements.md content
-- After completion: Read `<specPath>/design.md` to verify
+
+**After delegation (both paths):**
+- Read `<specPath>/design.md` to verify
 - Update state: set `planning.design` to `"complete"`
 
 #### Phase 4d: Task Breakdown
@@ -248,6 +320,19 @@ Set `pausedAfter` to `"tasks"` in the state file, then proceed directly to **Ste
 ## Step 7: Execution Phase
 
 See [execution-protocol.md](./execution-protocol.md) for the full execution protocol covering both sequential and swarm modes.
+
+## Merge Protocol
+
+When `flags.swarm` is true, each planning phase (except tasks) spawns multiple agents in parallel. After all agents in a phase return, the lead agent merges their outputs:
+
+1. **Read** all partial files from `<specPath>` (e.g., `research-structure.md`, `research-dependencies.md`, `research-testing.md`)
+2. **Deduplicate** overlapping findings — agents may discover the same things from different angles
+3. **Resolve contradictions** — prefer the agent whose focus area is most relevant to the conflicting point
+4. **Combine** into the canonical output format (the existing structure for `research.md` / `requirements.md` / `design.md` is preserved exactly)
+5. **Write** the merged canonical file to `<specPath>` (e.g., `research.md`)
+6. **Delete** all partial temp files (cleanup — e.g., `research-structure.md`, `research-dependencies.md`, `research-testing.md`)
+
+**Error handling:** If one agent fails, merge the successful outputs and warn the user about the failed agent. If ALL agents in a phase fail, set the phase to `"failed"` and stop (same as current single-agent failure behavior).
 
 ## Error Handling
 

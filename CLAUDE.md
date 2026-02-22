@@ -33,7 +33,7 @@ echo '<promise> SWARM COMPLETE </promise>' | grep -qiE '<promise>\s*SWARM\s+COMP
 
 ### Two-Phase System
 
-**Planning** (sequential, no code written): By default, `/ralph-swarm:start` runs only the research phase and pauses. The remaining phases are run incrementally via `/ralph-swarm:requirements`, `/ralph-swarm:design`, and `/ralph-swarm:tasks`, each pausing for review. Use `--full` to run all 4 phases in one shot. Each phase delegates to a specialized agent (`swarm-researcher` → `swarm-requirements` → `swarm-architect` → `swarm-task-planner`) and writes to `specs/<name>/`. User reviews before execution (unless `--yolo`).
+**Planning** (sequential cross-phase, no code written): By default, `/ralph-swarm:start` runs only the research phase and pauses. The remaining phases are run incrementally via `/ralph-swarm:requirements`, `/ralph-swarm:design`, and `/ralph-swarm:tasks`, each pausing for review. Use `--full` to run all 4 phases in one shot. Each phase delegates to a specialized agent (`swarm-researcher` → `swarm-requirements` → `swarm-architect` → `swarm-task-planner`) and writes to `specs/<name>/`. When `--swarm` is set, each planning phase (except tasks) spawns multiple agents in parallel within the phase — research spawns 3 agents (structure, dependencies, testing), requirements spawns 2 (functional, non-functional), design spawns 2 (architecture, contracts) — then the lead agent merges their outputs into the canonical spec file. Cross-phase ordering remains strictly sequential. User reviews before execution (unless `--yolo`).
 
 **Execution** (code written): Either sequential (one task at a time, stop hook re-injects) or swarm (Agent Teams with parallel worktrees). Both modes follow `execution-protocol.md`.
 
@@ -92,4 +92,5 @@ Changes to these files require updating their counterparts:
 | Agent types / fallback | `skills/swarm-coordinator/SKILL.md` AND `skills/team-composition/SKILL.md` |
 | Promise tag format | `swarm-watcher.sh` regex (line with `grep -qiE`) |
 | Planning phase logic | Each phase skill (`skills/requirements/`, `skills/design/`, `skills/tasks/`) AND `skills/start/SKILL.md` `--full` path |
+| Parallel planning (--swarm) | `skills/start/SKILL.md` (merge protocol + phase conditionals), `skills/requirements/SKILL.md`, `skills/design/SKILL.md` |
 | `pausedAfter` field | `references/state-schema.md`, `hooks/scripts/swarm-watcher.sh`, `hooks/scripts/load-context.sh`, each phase skill, `skills/status/SKILL.md` |

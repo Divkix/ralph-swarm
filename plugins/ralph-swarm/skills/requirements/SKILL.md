@@ -53,7 +53,8 @@ If `planning.requirements` is already `"complete"`:
 
 1. Check if `CLAUDE.md` exists in the project root. If it does, read it with the Read tool.
 2. Read `<specPath>/research.md` using the Read tool.
-3. If research.md does not exist or is empty, output this error and stop:
+3. Read `flags.swarm` from the state file (parsed in Step 1).
+4. If research.md does not exist or is empty, output this error and stop:
    ```
    Error: Research file not found at <specPath>/research.md. The research phase may have failed.
    Run /ralph-swarm:cancel to reset and start over.
@@ -64,16 +65,40 @@ If `planning.requirements` is already `"complete"`:
 1. Set `pausedAfter` to `null` in the state file (clear any previous pause).
 2. Set `planning.requirements` to `"in-progress"` in the state file.
 3. Write the updated state file.
+
+**If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-requirements` agent type:
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Functional**: user stories (happy paths), core acceptance criteria, scope boundaries, dependencies between features | `<specPath>/requirements-functional.md` |
+| B | **Non-functional & edge cases**: edge case analysis, performance/security NFRs, error scenarios, backwards compatibility | `<specPath>/requirements-nonfunctional.md` |
+
+- Launch both as parallel Task calls (in a single message with 2 tool uses).
+- Each agent's instruction: "Based on the research at `<specPath>/research.md`, produce requirements for: `<goal>`. Focus specifically on **<focus area>**. Save to `<output file>`."
+- Pass to each: goal, CLAUDE.md content (if exists), research.md content
+- After both complete, **merge** the partial files:
+  1. Read both partial files
+  2. Deduplicate overlapping requirements
+  3. Resolve any contradictions (prefer the agent whose focus area is more relevant)
+  4. Combine into `<specPath>/requirements.md` preserving the canonical format
+  5. Delete the partial files (`requirements-functional.md`, `requirements-nonfunctional.md`)
+- If one agent fails, merge the successful output and warn. If both fail, set phase to `"failed"` and stop.
+
+**If `flags.swarm` is false (default):** Single-agent delegation:
+
 4. Delegate to the `swarm-requirements` agent type (subagent_type: `ralph-swarm:swarm-requirements`) via the Task tool:
    - Instruction: "Based on the research at `<specPath>/research.md`, produce detailed requirements for: `<goal>`. Save to `<specPath>/requirements.md`."
-   - The requirements.md must include:
-     - Functional requirements (numbered, testable)
-     - Non-functional requirements (performance, security, compatibility)
-     - Acceptance criteria for each requirement
-     - Out-of-scope items (explicit exclusions)
-     - Dependencies on external systems or libraries
    - Pass: goal, CLAUDE.md content (if exists), research.md content
-5. After the agent completes, verify `<specPath>/requirements.md` exists by reading it.
+
+**Regardless of path**, the requirements.md must include:
+   - Functional requirements (numbered, testable)
+   - Non-functional requirements (performance, security, compatibility)
+   - Acceptance criteria for each requirement
+   - Out-of-scope items (explicit exclusions)
+   - Dependencies on external systems or libraries
+
+**After delegation (both paths):**
+5. Verify `<specPath>/requirements.md` exists by reading it.
 6. If verification fails, set `planning.requirements` to `"failed"` and stop with an error.
 7. Set `planning.requirements` to `"complete"` in the state file.
 
