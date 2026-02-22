@@ -117,6 +117,12 @@ Tracks the progress of each planning sub-phase. All four sub-phases must reach `
 
 Tracks the state of task execution. Used by both sequential and swarm modes, though some fields are mode-specific.
 
+#### `execution.snapshotCommit`
+- **Type:** `string`
+- **Default:** `""` (empty string)
+- **Description:** The git commit hash (`git rev-parse HEAD`) recorded before the first task executes. This is the rollback point — if `/ralph-swarm:rollback` is used, all changes are reset to this commit. Enables safe recovery from execution gone wrong.
+- **Updated:** Set once at the start of execution, before the first task runs. Never changed after that.
+
 #### `execution.swarm`
 - **Type:** `boolean`
 - **Default:** `false`
@@ -243,8 +249,8 @@ Configuration flags parsed from CLI arguments that modify coordinator behavior.
 
 #### `specPath`
 - **Type:** `string`
-- **Default:** `"./specs/"` (relative to project root)
-- **Description:** Path to the directory where spec documents are stored. The actual spec files live in `<specPath>/<name>/` (e.g., `specs/add-user-auth/`).
+- **Default:** Resolved as absolute path: `"$(pwd)/specs/<name>/"` at initialization time.
+- **Description:** Absolute path to the directory where spec documents are stored. Always stored as an absolute path for worktree compatibility — teammates in isolated worktrees cannot resolve relative paths back to the main working tree.
 - **Updated:** Set once during initialization. Can be overridden by user configuration.
 
 #### `teamName`

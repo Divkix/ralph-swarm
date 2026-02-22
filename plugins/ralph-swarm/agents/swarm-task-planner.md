@@ -74,84 +74,15 @@ Each task must be specified precisely enough that an executor agent can complete
 
 ## Output Format
 
-You MUST produce a file called `tasks.md` with the following structure:
+Produce `tasks.md` following the format defined in `task-format.md` (the canonical source for task structure).
 
-```markdown
-# Implementation Tasks: [Feature Name]
-
-**Date:** [current date]
-**Design Source:** design.md
-**Total Tasks:** [count]
-**Slicing Strategy:** vertical (each task = complete feature slice)
-
-## TASK-001: [Feature Slice Title]
-
-**Complexity:** S | M | L
-**Files:**
-- CREATE: `path/to/migration.sql`
-- CREATE: `path/to/service.go`
-- MODIFY: `path/to/router.go` — add route registration
-**Dependencies:** None
-**Description:**
-[End-to-end slice description. Precise enough for an executor to implement without questions. Include exact function signatures, SQL statements, type definitions — whatever is needed.]
-**Context to Read:**
-- design.md, section "[relevant section]"
-- `[existing file path]` — [why to read it]
-**Verification:**
-```bash
-[exact command to verify this task is complete and correct]
-```
-
-## TASK-002: [Feature Slice Title]
-
-**Complexity:** M
-**Files:**
-- CREATE: `path/to/handler.go`
-- MODIFY: `path/to/types.go` — add new struct
-**Dependencies:** TASK-001
-**Description:**
-[...]
-**Context to Read:**
-[...]
-**Verification:**
-```bash
-[...]
-```
-
-## TASK-N: Full Integration Verification
-
-**Complexity:** S
-**Files:**
-- None (verification only)
-**Dependencies:** [all prior tasks]
-**Description:**
-1. Run full test suite: `[command]`
-2. Run linter: `[command]`
-3. Verify acceptance criteria:
-   - [ ] US-001: [how to verify]
-   - [ ] US-002: [how to verify]
-4. Check for regressions: `[command]`
-**Verification:**
-```bash
-[commands that must all pass]
-```
-
----
-
-## File Manifest
-
-| Task | Files Touched |
-|------|---------------|
-| TASK-001 | `migration.sql`, `service.go`, `router.go` |
-| TASK-002 | `handler.go`, `types.go` |
-| ... | ... |
-
-## Risk Register
-
-| Task | Risk | Mitigation |
-|------|------|------------|
-| TASK-xxx | [what could go wrong] | [how to handle it] |
-```
+Key rules (do not skip):
+- Every task declares exact files (`CREATE`/`MODIFY`) for runtime parallelism computation
+- File Manifest table is mandatory at the bottom
+- Risk Register is mandatory
+- Same format works for both sequential and swarm modes
+- Each task must include: Complexity, Files, Dependencies, Description, Context to Read, Verification
+- The final task should be a Full Integration Verification task
 
 ## Rules
 

@@ -58,7 +58,12 @@ Before proceeding to state file creation, validate the parsed flags:
 
 ## Step 2: Create State File
 
-Write `.ralph-swarm-state.json` in the project root with this exact structure:
+Before writing the state file, resolve the absolute spec path using Bash:
+```bash
+SPEC_PATH="$(pwd)/specs/<name>"
+```
+
+Write `.ralph-swarm-state.json` in the project root with this exact structure (using the absolute path for `specPath`):
 
 ```json
 {
@@ -66,7 +71,7 @@ Write `.ralph-swarm-state.json` in the project root with this exact structure:
   "goal": "<goal>",
   "phase": "planning",
   "mode": "sequential",
-  "specPath": "./specs/<name>/",
+  "specPath": "<absolute-path-to-project>/specs/<name>/",
   "teamName": "ralph-<name>",
   "flags": {
     "swarm": false,

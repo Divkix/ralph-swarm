@@ -59,43 +59,42 @@ Analyze the project to determine the dominant language/framework:
 
 4. **If unclear or mixed**, default to `general-purpose`. It is the safest fallback.
 
+### Agent Type Availability Note
+
+The language-specific types (`golang-pro`, `typescript-pro`, `python-pro`, `rust-pro`, `elixir-expert`, `sql-pro`) are NOT included with this plugin. They are third-party agent definitions that may or may not be installed in the user's environment.
+
+**Fallback chain (always apply):**
+1. Try detected language-specific agent (e.g., `golang-pro`, `typescript-pro`)
+2. If unavailable → fall back to `swarm-executor` (included with this plugin)
+3. If unavailable → fall back to `general-purpose` (always available)
+
 ### Agent Type Reference
 
-| Agent Type        | Best For                                      |
-|-------------------|-----------------------------------------------|
-| `golang-pro`      | Go projects, CLI tools, servers                |
-| `typescript-pro`  | TypeScript/JavaScript, React, Node.js, Next.js |
-| `python-pro`      | Python, Django, Flask, FastAPI, data pipelines  |
-| `rust-pro`        | Rust projects, systems programming              |
-| `elixir-expert`   | Elixir/Phoenix projects                         |
-| `sql-pro`         | Database-heavy work, migrations, query tuning   |
-| `general-purpose` | Multi-language, mixed projects, unclear scope   |
+| Agent Type        | Best For                                      | Included? |
+|-------------------|-----------------------------------------------|-----------|
+| `golang-pro`      | Go projects, CLI tools, servers                | No (third-party) |
+| `typescript-pro`  | TypeScript/JavaScript, React, Node.js, Next.js | No (third-party) |
+| `python-pro`      | Python, Django, Flask, FastAPI, data pipelines  | No (third-party) |
+| `rust-pro`        | Rust projects, systems programming              | No (third-party) |
+| `elixir-expert`   | Elixir/Phoenix projects                         | No (third-party) |
+| `sql-pro`         | Database-heavy work, migrations, query tuning   | No (third-party) |
+| `swarm-executor`  | Any language, this plugin's built-in executor   | Yes |
+| `general-purpose` | Multi-language, mixed projects, unclear scope   | Yes (built-in) |
 
-## Cost Estimation
+## Cost Awareness
 
-Provide a rough cost estimate so the user can make an informed decision before committing tokens.
+Exact costs depend on model, pricing, prompt length, and task complexity. No dollar estimates are provided — they would be speculative.
 
-### Per-Teammate Estimates
-- Each teammate consumes approximately **$5-15/hour** in API tokens depending on task complexity and model usage.
-- Simple tasks (file edits, config changes): lower end (~$5/hr).
-- Complex tasks (architecture changes, debugging, multi-file refactors): upper end (~$15/hr).
+**What affects cost:**
+- Number of teammates (each is an independent LLM session)
+- Task complexity (more turns = more tokens)
+- Verification cycles (failed tasks trigger retries)
 
-### Total Estimate Formula
-```
-low  = teammates * hours * $5
-high = teammates * hours * $15
-```
-
-### Examples
-
-| Teammates | Estimated Duration | Low Estimate | High Estimate |
-|-----------|--------------------|--------------|---------------|
-| 2         | 1 hour             | $10          | $30           |
-| 3         | 2 hours            | $30          | $90           |
-| 4         | 3 hours            | $60          | $180          |
-| 5         | 2 hours            | $50          | $150          |
-
-Duration is estimated from the total number of tasks and their apparent complexity. A task with "implement X from scratch" is ~30-60 min. A task with "update config Y" is ~5-10 min.
+**Cost-saving tips:**
+- Sequential mode for < 4 tasks
+- Fewer teammates with more tasks > many idle teammates
+- `--max-iterations` to cap runaway sessions
+- Review plan before execution (don't use `--yolo` unless you mean it)
 
 ## Output Format
 
@@ -104,7 +103,6 @@ When reporting team composition to the user or the coordinator, always use this 
 ```
 Team: <N> x <agent-type> in worktrees
 Computed batches: <B> (largest batch: <L> tasks)
-Estimated cost: $<low>-$<high>
 ```
 
 ### Example Output
@@ -112,7 +110,6 @@ Estimated cost: $<low>-$<high>
 ```
 Team: 3 x golang-pro in worktrees
 Computed batches: 4 (largest batch: 3 tasks)
-Estimated cost: $45-$135
 ```
 
 If the user has not confirmed yet, present this and wait for approval before proceeding to team creation.

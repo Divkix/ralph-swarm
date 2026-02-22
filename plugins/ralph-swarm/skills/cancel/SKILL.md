@@ -41,6 +41,17 @@ Only if `execution.swarm` is `true` AND `phase` is `"execution"`:
 
 4. If the team config file does not exist (team was never created or already cleaned up), skip this step silently.
 
+## Step 2.5: Clean Up Orphaned Worktrees
+
+Regardless of swarm mode, check for and clean up orphaned worktrees:
+
+1. List worktrees: `git worktree list`
+2. Identify orphaned worktrees with paths containing `ralph-` or `.claude/worktrees/`
+3. Remove each: `git worktree remove <path> --force`
+4. Prune stale metadata: `git worktree prune`
+
+If no orphaned worktrees are found, skip silently. If removal fails for any worktree, warn but continue.
+
 ## Step 3: Remove State File
 
 Delete `.ralph-swarm-state.json` from the project root using Bash:

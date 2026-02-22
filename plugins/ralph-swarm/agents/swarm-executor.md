@@ -92,6 +92,9 @@ Before committing, review your own changes:
 
 ### Step 6: Commit
 
+Stage only the files you modified: `git add <file1> <file2> ...`
+NEVER use `git add -A` or `git add .`. Only stage files from this task's Files list.
+
 Create a commit with a conventional commit message:
 
 ```

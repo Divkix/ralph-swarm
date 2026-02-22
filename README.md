@@ -88,6 +88,7 @@ Plans, skips review, immediately fires up a team of agents. No human in the loop
 | `/ralph-swarm:go` | Resume execution after reviewing the spec |
 | `/ralph-swarm:status` | Show current progress |
 | `/ralph-swarm:cancel` | Abort the session, clean up state |
+| `/ralph-swarm:rollback` | Reset to pre-execution state (destructive) |
 | `/ralph-swarm:help` | Print usage and flags |
 
 ---
@@ -233,6 +234,8 @@ Generated during planning at `./specs/<name>/`:
 
 These files persist even after `/ralph-swarm:cancel`. They are the source of truth for execution.
 
+See `skills/start/task-format.md` for the full task format specification.
+
 ### Hooks
 
 | Hook | Script | Purpose |
@@ -275,35 +278,36 @@ The state file supports resumption. Just start a new session — the `SessionSta
 ```text
 ralph-swarm/
 ├── .claude-plugin/
-│   └── marketplace.json          # Marketplace metadata
-└── plugins/
-    └── ralph-swarm/
-        ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest
-        ├── agents/               # Specialized agent definitions
-        │   ├── swarm-researcher.md
-        │   ├── swarm-requirements.md
-        │   ├── swarm-architect.md
-        │   ├── swarm-task-planner.md
-        │   ├── swarm-executor.md
-        │   └── swarm-verifier.md
-        ├── commands/             # Slash command implementations
-        │   ├── start.md
-        │   ├── go.md
-        │   ├── status.md
-        │   ├── cancel.md
-        │   └── help.md
-        ├── hooks/                # Session lifecycle hooks
-        │   ├── hooks.json
-        │   └── scripts/
-        │       ├── load-context.sh
-        │       └── swarm-watcher.sh
-        ├── references/           # Internal documentation
-        │   ├── agent-team-patterns.md
-        │   └── state-schema.md
-        └── skills/               # Coordinator skills
-            ├── swarm-coordinator/
-            └── team-composition/
+│   └── marketplace.json
+└── plugins/ralph-swarm/
+    ├── .claude-plugin/plugin.json
+    ├── agents/
+    │   ├── swarm-researcher.md
+    │   ├── swarm-requirements.md
+    │   ├── swarm-architect.md
+    │   ├── swarm-task-planner.md
+    │   ├── swarm-executor.md
+    │   └── swarm-verifier.md
+    ├── hooks/
+    │   ├── hooks.json
+    │   └── scripts/
+    │       ├── load-context.sh
+    │       └── swarm-watcher.sh
+    ├── references/
+    │   ├── agent-team-patterns.md
+    │   └── state-schema.md
+    └── skills/
+        ├── start/               ← /ralph-swarm:start
+        │   ├── SKILL.md
+        │   ├── execution-protocol.md
+        │   └── task-format.md
+        ├── go/SKILL.md          ← /ralph-swarm:go
+        ├── status/SKILL.md      ← /ralph-swarm:status
+        ├── cancel/SKILL.md      ← /ralph-swarm:cancel
+        ├── help/SKILL.md        ← /ralph-swarm:help
+        ├── rollback/SKILL.md    ← /ralph-swarm:rollback
+        ├── swarm-coordinator/SKILL.md  (internal)
+        └── team-composition/SKILL.md   (internal)
 ```
 
 ---

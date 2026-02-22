@@ -25,6 +25,10 @@ This skill defines the exact protocol for the lead agent to manage an Agent Team
      - `.ex` / `.exs` files present and/or `mix.exs` exists --> `elixir-expert`
      - SQL-heavy project (majority `.sql` files) --> `sql-pro`
      - Mixed languages or unclear --> `general-purpose`
+   - **Fallback chain (always apply):** The language-specific types above are NOT included with this plugin. If the detected type is unavailable:
+     1. Try detected language-specific agent (e.g., `golang-pro`, `typescript-pro`)
+     2. If unavailable → fall back to `swarm-executor` (included with this plugin)
+     3. If unavailable → fall back to `general-purpose` (always available)
 5. **Spawn teammates** via the `Task` tool with the `team_name` parameter and `isolation: "worktree"`. Name teammates sequentially (e.g., `executor-1`, `executor-2`, ...).
 
 ## Runtime Parallelism Computation
@@ -96,16 +100,26 @@ If TASK-002 and TASK-003 did NOT share `types.go`, they would both be in Batch 2
 After assigning tasks, enter the monitoring loop:
 
 1. **Periodically call `TaskList`** to check overall progress.
-2. **When a teammate sends a completion message via `SendMessage`**, verify the work:
-   - If the teammate is in a worktree, pull their changes or inspect the files directly.
-   - Run the verification commands specified in `tasks.md` for that task (tests, lint, type-check, etc.).
-   - **If verification passes:** mark the task as completed via `TaskUpdate` with `status: "completed"`.
-   - **If verification fails:** send the teammate the error output via `SendMessage` with a clear description of what failed. The task remains `in_progress`.
+2. **When a teammate sends a completion message via `SendMessage`**, delegate verification to a `swarm-verifier` agent via the Task tool:
+   - Pass: task verification commands from tasks.md, acceptance criteria, changed files reported by the teammate.
+   - **If VERIFICATION_PASS:** mark the task as completed via `TaskUpdate` with `status: "completed"`.
+   - **If VERIFICATION_FAIL:** send the verifier's failure report to the teammate via `SendMessage` with a clear description of what failed. The task remains `in_progress`.
+   - **If the swarm-verifier agent type is not available**, run verification commands inline via Bash as a fallback.
 3. **Track counts:** maintain running totals of completed and failed tasks. Update `.ralph-swarm-state.json` after every state change:
    - Update `execution.completedTasks` array with completed task indices.
    - Update `execution.failedTasks` array with failed task indices.
    - Update `execution.currentBatch` to reflect which batch is active.
    - Increment `execution.iteration` on each monitoring cycle.
+
+## Branch Merging
+
+After a teammate's task passes verification, merge their worktree branch back. See `execution-protocol.md` "Branch Merge Protocol (Swarm Mode)" for the full protocol.
+
+Key rules:
+- Prefer `git merge --ff-only <branch>`. Fall back to `git merge <branch> --no-edit` if fast-forward fails.
+- If merge conflicts occur, create a fix task and assign to a teammate.
+- Merge ALL Batch N branches before starting Batch N+1 work.
+- Run verification on the merged result to catch integration issues.
 
 ## Completion
 

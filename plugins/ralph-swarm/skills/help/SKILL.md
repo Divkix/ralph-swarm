@@ -47,11 +47,21 @@ COMMANDS
       /ralph-swarm:status
 
   /ralph-swarm:cancel
-    Cancel the active swarm, shut down teammates, and remove state file.
-    Spec files and any code changes are preserved.
+    Cancel the active swarm, shut down teammates, remove state file,
+    and clean up orphaned worktrees. Spec files and code changes are
+    preserved.
 
     Example:
       /ralph-swarm:cancel
+
+  /ralph-swarm:rollback
+    Roll back ALL execution changes to the pre-execution snapshot
+    commit. This is DESTRUCTIVE — all code from task execution is
+    lost. Spec files are preserved only if they were committed before
+    execution. Requires user confirmation.
+
+    Example:
+      /ralph-swarm:rollback
 
   /ralph-swarm:help
     Show this help text.

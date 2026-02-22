@@ -16,6 +16,12 @@ Before beginning execution, update `.ralph-swarm-state.json`:
 - Set `execution.swarm` to match the `--swarm` flag (or `flags.swarm`)
 - Populate `execution.tasks` array with objects: `{"id": 1, "title": "...", "status": "pending", "dependsOn": [...]}`
 
+## Pre-Execution Snapshot
+
+Before executing the first task, record the rollback point:
+1. Run `git rev-parse HEAD` and store as `execution.snapshotCommit` in the state file.
+2. This enables rollback to pre-execution state if needed via `/ralph-swarm:rollback`.
+
 ## Sequential Mode (--swarm is false)
 
 1. Read the tasks list from the state file.
@@ -30,13 +36,18 @@ Before beginning execution, update `.ralph-swarm-state.json`:
    - Instruction: "Execute this task completely. Follow the acceptance criteria. Report what files you created or modified and whether all criteria are met."
 5. After the agent completes:
    - Read the agent's output to determine success or failure
-   - Update the task status in `.ralph-swarm-state.json` to `"completed"` or `"failed"`
-   - Append task index to `execution.completedTasks` or `execution.failedTasks`
    - Advance `execution.taskIndex`
-6. If `flags.commit` is true and the task succeeded:
-   - Stage changed files: `git add -A` (or preferably stage specific files the agent reported changing)
+6. Delegate verification to a `swarm-verifier` agent (subagent_type: `ralph-swarm:swarm-verifier`):
+   - Pass: the task's verification commands, acceptance criteria, and list of files the executor reported changing.
+   - If VERIFICATION_PASS: update the task status to `"completed"` and append to `execution.completedTasks`.
+   - If VERIFICATION_FAIL: send failure details back to executor for retry (up to 3 total attempts). If all retries exhausted, mark as `"failed"` and append to `execution.failedTasks`.
+   - If the swarm-verifier agent type is not available, run verification commands inline via Bash as a fallback.
+7. If `flags.commit` is true and the task succeeded:
+   - Stage ONLY the files the executor reported changing: `git add <file1> <file2> ...`
+   - NEVER use `git add -A` or `git add .` — these can stage sensitive files (.env, credentials).
+   - If the executor did not report files, use `git diff --name-only` filtered against the task's declared file list.
    - Commit: `feat(swarm): <task title> [<name>]`
-7. The **stop hook** (`swarm-watcher.sh`) will detect the active execution phase and re-inject you with a prompt to continue the next task. You do not need to loop manually — just complete the current task and let the hook handle continuation.
+8. The **stop hook** (`swarm-watcher.sh`) will detect the active execution phase and re-inject you with a prompt to continue the next task. You do not need to loop manually — just complete the current task and let the hook handle continuation.
 
 ## TeamCreate Enforcement (NON-NEGOTIABLE)
 
@@ -99,3 +110,16 @@ Before beginning execution, update `.ralph-swarm-state.json`:
      - Verify that `execution.completedTasks` + `execution.failedTasks` accounts for `execution.totalTasks`
      - Set `phase` to `"complete"` in the state file
      - Output exactly: `<promise>SWARM COMPLETE</promise>`
+
+## Branch Merge Protocol (Swarm Mode)
+
+After a teammate's task passes verification:
+
+1. Identify the teammate's worktree branch name (from the Task tool result).
+2. From the main working directory, merge the branch:
+   - Prefer fast-forward: `git merge --ff-only <branch>`
+   - If ff fails, regular merge: `git merge <branch> --no-edit`
+   - If merge conflicts: create a fix task with `git diff --name-only --diff-filter=U` output and assign to a teammate.
+3. Run the task's verification command on the merged result to catch integration issues.
+4. Merge ALL Batch N branches before starting Batch N+1 work.
+5. Within a batch, merge in task completion order.

@@ -61,12 +61,25 @@ else
   progress="Phase: ${phase}"
 fi
 
+# ── Check for orphaned worktrees (swarm mode execution only) ──────────────────
+if [[ "$phase" == "execution" ]] && [[ "$swarm_mode" == "true" ]]; then
+  orphan_count=$(git worktree list 2>/dev/null | grep -c 'ralph-' || echo "0")
+  if [[ "$orphan_count" -gt 0 ]]; then
+    orphan_warning=" | WARNING: ${orphan_count} orphaned worktree(s). Run /ralph-swarm:cancel to clean up."
+  else
+    orphan_warning=""
+  fi
+else
+  orphan_warning=""
+fi
+
 # ── Build system message ──────────────────────────────────────────────────────
 summary="Ralph Swarm active: ${name:-unnamed}"
 summary+=" | Goal: ${goal:-none}"
 summary+=" | ${progress}"
 summary+=" | Mode: ${mode_label}"
 summary+=" | Commands: /ralph-swarm:status, /ralph-swarm:cancel"
+summary+="${orphan_warning}"
 
 # Emit system message JSON.
 if has_jq; then

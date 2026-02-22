@@ -15,6 +15,34 @@ HOOK_INPUT=$(cat)
 # ── Helper: check if jq is available ──────────────────────────────────────────
 has_jq() { command -v jq &>/dev/null; }
 
+# ── Helper: portable file lock (mkdir-based) ──────────────────────────────────
+STATE_LOCKDIR="${STATE_FILE}.lock"
+_LOCK_HELD=false
+
+acquire_lock() {
+  local attempts=0
+  while ! mkdir "$STATE_LOCKDIR" 2>/dev/null; do
+    attempts=$((attempts + 1))
+    if [[ "$attempts" -ge 50 ]]; then
+      rm -rf "$STATE_LOCKDIR"
+      mkdir "$STATE_LOCKDIR" 2>/dev/null || true
+      break
+    fi
+    sleep 0.1
+  done
+  _LOCK_HELD=true
+}
+
+release_lock() {
+  if [[ "$_LOCK_HELD" == "true" ]]; then
+    rm -rf "$STATE_LOCKDIR"
+    _LOCK_HELD=false
+  fi
+}
+
+# Ensure lock cleanup on exit
+trap release_lock EXIT
+
 # ── Helper: read a field from the state file ──────────────────────────────────
 # Falls back to grep/sed when jq is missing.
 read_state() {
@@ -52,6 +80,7 @@ read_task_counts() {
 increment_iteration() {
   local current="$1"
   local next=$((current + 1))
+  acquire_lock
   if has_jq; then
     local tmp
     tmp=$(mktemp)
@@ -60,6 +89,7 @@ increment_iteration() {
     sed -i.bak "s/\"iteration\"[[:space:]]*:[[:space:]]*${current}/\"iteration\": ${next}/" "$STATE_FILE"
     rm -f "${STATE_FILE}.bak"
   fi
+  release_lock
 }
 
 # ── Helper: clean up the state file ──────────────────────────────────────────
@@ -108,7 +138,7 @@ fi
 # ── 4. Check for the completion promise (verified against task counts) ────────
 # The promise is treated as a request to exit. We independently verify that
 # all tasks are accounted for (completed + failed >= total) before allowing it.
-if echo "$HOOK_INPUT" | grep -q '<promise>SWARM COMPLETE</promise>'; then
+if echo "$HOOK_INPUT" | grep -qiE '<promise>\s*SWARM\s+COMPLETE\s*</promise>'; then
   read -r completed failed total <<< "$(read_task_counts)"
   accounted=$((completed + failed))
   if [[ "$total" -eq 0 || "$accounted" -ge "$total" ]]; then
@@ -119,12 +149,12 @@ if echo "$HOOK_INPUT" | grep -q '<promise>SWARM COMPLETE</promise>'; then
   increment_iteration "$iteration"
   new_iteration=$((iteration + 1))
   remaining=$((total - accounted))
-  prompt="You claimed completion but the task counts don't add up. "
-  prompt+="State file shows ${completed} completed + ${failed} failed = ${accounted} accounted, "
-  prompt+="but totalTasks is ${total}. ${remaining} tasks are still unaccounted for. "
-  prompt+="Continue executing remaining tasks. When genuinely ALL tasks are done, "
-  prompt+="update completedTasks/failedTasks in the state file, set phase to \"complete\", "
-  prompt+="then output <promise>SWARM COMPLETE</promise>."
+  prompt="PREMATURE COMPLETION REJECTED - Follow these steps in order:"
+  prompt+=$'\n'"1. Task counts don't add up: ${completed} completed + ${failed} failed = ${accounted}, but totalTasks = ${total}. ${remaining} tasks unaccounted."
+  prompt+=$'\n'"2. Read .ralph-swarm-state.json to identify remaining tasks with status 'pending' or 'in-progress'."
+  prompt+=$'\n'"3. Execute each remaining task."
+  prompt+=$'\n'"4. Update completedTasks/failedTasks arrays in the state file after each task."
+  prompt+=$'\n'"5. When ALL tasks are accounted for: set phase to \"complete\", then output <promise>SWARM COMPLETE</promise>."
 
   if has_jq; then
     jq -n \
@@ -153,12 +183,13 @@ if [[ "$swarm_mode" == "true" ]]; then
   team_created=${team_created:-false}
   if [[ "$team_created" != "true" ]]; then
     # TeamCreate was never called — block exit and force the AI to call it
-    tc_prompt="CRITICAL: You are in swarm mode but you NEVER called TeamCreate. "
-    tc_prompt+="You MUST call TeamCreate with team_name from the state file BEFORE doing anything else. "
-    tc_prompt+="DO NOT use the Task tool with run_in_background as a substitute. "
-    tc_prompt+="DO NOT spawn independent subagents. "
-    tc_prompt+="Call TeamCreate NOW, then set execution.teamCreated to true in the state file, "
-    tc_prompt+="then proceed with swarm execution using the Agent Team."
+    tc_prompt="TEAMCREATE REQUIRED - Follow these steps in order:"
+    tc_prompt+=$'\n'"1. You are in swarm mode but TeamCreate was NEVER called."
+    tc_prompt+=$'\n'"2. Read .ralph-swarm-state.json to get the teamName."
+    tc_prompt+=$'\n'"3. Call TeamCreate with team_name set to the teamName value."
+    tc_prompt+=$'\n'"4. Set execution.teamCreated to true in the state file."
+    tc_prompt+=$'\n'"5. Proceed with swarm execution using the Agent Team."
+    tc_prompt+=$'\n'"PROHIBITED: Task tool with run_in_background, independent subagents."
     if has_jq; then
       jq -n \
         --arg decision "block" \
@@ -175,19 +206,24 @@ EOF
 fi
 
 if [[ "$swarm_mode" == "true" ]]; then
-  prompt="You are the swarm lead coordinating an Agent Team (created via TeamCreate). "
-  prompt+="All work MUST be done by Agent Team teammates, NOT by Task tool subagents. "
-  prompt+="Check the TaskList for pending and in-progress tasks. "
-  prompt+="Assign any unassigned tasks to idle teammates via TaskUpdate. Verify completed work by reviewing "
-  prompt+="task outputs. When ALL tasks are done and verified, update the state file "
-  prompt+="(completedTasks, failedTasks, totalTasks must reconcile), set phase to \"complete\", "
-  prompt+="then output <promise>SWARM COMPLETE</promise> to finish. Otherwise, continue coordinating."
+  prompt="SWARM COORDINATOR LOOP - Follow these steps in order:"
+  prompt+=$'\n'"1. Call TaskList to see all pending, in-progress, and completed tasks."
+  prompt+=$'\n'"2. For unassigned pending tasks: assign to idle teammates via TaskUpdate."
+  prompt+=$'\n'"3. For completed tasks: verify work by delegating to swarm-verifier agent."
+  prompt+=$'\n'"4. Update .ralph-swarm-state.json: sync completedTasks, failedTasks arrays."
+  prompt+=$'\n'"5. If ALL tasks done (completedTasks + failedTasks = totalTasks):"
+  prompt+=$'\n'"   a. Set phase to \"complete\" in the state file."
+  prompt+=$'\n'"   b. Output exactly: <promise>SWARM COMPLETE</promise>"
+  prompt+=$'\n'"6. If tasks remain: continue coordinating."
+  prompt+=$'\n'"RULE: All work done by Agent Team teammates, NOT Task tool subagents."
 else
-  prompt="You are in sequential execution mode. Read ${STATE_FILE} for the current task index "
-  prompt+="and full task list. Execute the next incomplete task using the swarm-executor agent. "
-  prompt+="After each task completes, update the state file (completedTasks/failedTasks arrays). "
-  prompt+="When ALL tasks are finished, set phase to \"complete\" in the state file, "
-  prompt+="then output <promise>SWARM COMPLETE</promise> to finish."
+  prompt="SEQUENTIAL EXECUTION LOOP - Follow these steps in order:"
+  prompt+=$'\n'"1. Read ${STATE_FILE} to get the current task index and task list."
+  prompt+=$'\n'"2. Find the next task with status 'pending' whose dependencies are all 'completed'."
+  prompt+=$'\n'"3. Delegate it to a swarm-executor agent via the Task tool."
+  prompt+=$'\n'"4. After completion: update completedTasks/failedTasks arrays in the state file."
+  prompt+=$'\n'"5. If ALL tasks done: set phase to \"complete\", output <promise>SWARM COMPLETE</promise>."
+  prompt+=$'\n'"6. If tasks remain: the stop hook will re-inject you for the next task."
 fi
 
 # Emit the blocking decision as JSON on stdout.
