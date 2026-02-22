@@ -74,6 +74,7 @@ The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swa
   - `"execution"` — Tasks are being executed (either sequentially or via swarm).
   - `"complete"` — All tasks finished and verified. Terminal state.
 - **Updated:** Transitions forward as each phase completes. Never moves backward.
+- **Cancel behavior:** When `phase == "planning"` and cancel is invoked, the spec directory at `specPath` is deleted along with the state file.
 
 #### `mode`
 - **Type:** `string` (enum: `"sequential"`, `"swarm"`)

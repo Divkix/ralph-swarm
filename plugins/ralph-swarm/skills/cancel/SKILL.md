@@ -6,7 +6,7 @@ allowed-tools: "*"
 
 # ralph-swarm:cancel
 
-Cancel an active ralph-swarm session, shut down any running teammates, and clean up state. Spec files are preserved.
+Cancel an active ralph-swarm session, shut down any running teammates, and clean up state. Spec files are preserved unless cancelled during planning (incomplete specs are removed).
 
 ## Step 1: Load State
 
@@ -52,6 +52,18 @@ Regardless of swarm mode, check for and clean up orphaned worktrees:
 
 If no orphaned worktrees are found, skip silently. If removal fails for any worktree, warn but continue.
 
+## Step 2.7: Clean Up Partial Specs (Planning Phase Only)
+
+Only if `phase` is `"planning"`:
+
+1. Delete the spec directory: `rm -rf <specPath>`
+2. If the spec files were committed, create a commit removing them:
+   - `git add <specPath>` (stages the deletion)
+   - `git commit -m "chore(swarm): remove partial specs for <name>"`
+   - If nothing was committed (files were never staged), skip the commit.
+
+If `phase` is NOT `"planning"`, skip this step entirely — specs are preserved.
+
 ## Step 3: Remove State File
 
 Delete `.ralph-swarm-state.json` from the project root using Bash:
@@ -80,7 +92,14 @@ Completed tasks: <completedTasks>/<totalTasks>
 Note: Changes from completed tasks remain in the working tree. Review with `git diff` or `git status`.
 ```
 
-Always include:
+If `phase` was `"planning"` (partial specs were removed):
+```
+Partial spec files removed from: <specPath>
+
+To restart, run /ralph-swarm:start "your goal"
+```
+
+If `phase` was NOT `"planning"` (specs preserved):
 ```
 Spec files preserved at: <specPath>
   - research.md
@@ -96,7 +115,7 @@ Only list spec files that actually exist (check with Read or Bash `ls`).
 
 ## Important Rules
 
-- **NEVER delete spec files.** The user may want to review, edit, or reuse them.
+- **NEVER delete spec files once planning is complete.** During planning phase, partial specs are removed on cancel.
 - **NEVER delete any code changes** that were made during execution. They are in the working tree and the user can review them with `git status` and `git diff`.
 - **NEVER run `git checkout .` or `git reset --hard`** or any destructive git command. Cancelling the swarm only removes the orchestration state, not the work product.
 - If anything goes wrong during cleanup (e.g., TeamDelete fails), report the issue but still remove the state file. A stale state file is worse than orphaned team resources.
