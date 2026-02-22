@@ -14,6 +14,7 @@ HOOK_INPUT=$(cat)
 
 # ── Helper: check if jq is available ──────────────────────────────────────────
 has_jq() { command -v jq &>/dev/null; }
+has_python3() { command -v python3 &>/dev/null; }
 
 # ── Helper: escape a string for safe embedding in JSON ────────────────────────
 json_escape() {
@@ -22,6 +23,8 @@ json_escape() {
   s="${s//\"/\\\"}"
   s="${s//$'\n'/\\n}"
   s="${s//$'\t'/\\t}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\b'/\\b}"
   printf '%s' "$s"
 }
 
@@ -54,21 +57,28 @@ release_lock() {
 trap release_lock EXIT
 
 # ── Helper: read a field from the state file ──────────────────────────────────
-# Falls back to grep/sed when jq is missing.
+# Falls back to python3 when jq is missing.
 read_state() {
   local field="$1"
   if has_jq; then
     jq -r "if $field == null then empty else $field end" "$STATE_FILE" 2>/dev/null || echo ""
+  elif has_python3; then
+    python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    keys = sys.argv[2].lstrip('.').split('.')
+    v = d
+    for k in keys:
+        v = v[k]
+    if v is None:
+        sys.exit(0)
+    print(str(v).lower() if isinstance(v, bool) else v)
+except (KeyError, TypeError, FileNotFoundError, json.JSONDecodeError):
+    pass
+" "$STATE_FILE" "$field" 2>/dev/null || echo ""
   else
-    # Crude fallback — works for simple top-level and one-level nested keys.
-    # Translates ".execution.iteration" to a grep for "iteration".
-    local key
-    key=$(echo "$field" | sed 's/.*\.//')
-    grep -o "\"${key}\"[[:space:]]*:[[:space:]]*[^,}]*" "$STATE_FILE" 2>/dev/null \
-      | head -1 \
-      | sed 's/.*:[[:space:]]*//' \
-      | tr -d '"' \
-      || echo ""
+    echo ""
   fi
 }
 
@@ -83,6 +93,22 @@ read_task_counts() {
     failed=$(jq -r '(.execution.failedTasks | if type == "array" then length else 0 end)' "$STATE_FILE" 2>/dev/null || echo "0")
     total=$(jq -r '(.execution.totalTasks // 0)' "$STATE_FILE" 2>/dev/null || echo "0")
     echo "${completed} ${failed} ${total}"
+  elif has_python3; then
+    python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    ex = d.get('execution', {}) if isinstance(d, dict) else {}
+    c = ex.get('completedTasks', [])
+    f = ex.get('failedTasks', [])
+    t = ex.get('totalTasks', 0)
+    c = c if isinstance(c, int) else (len(c) if isinstance(c, list) else 0)
+    f = f if isinstance(f, int) else (len(f) if isinstance(f, list) else 0)
+    t = t if isinstance(t, int) else 0
+    print(f'{c} {f} {t}')
+except Exception:
+    print('0 0 0')
+" "$STATE_FILE" 2>/dev/null || echo "0 0 0"
   else
     echo "0 0 0"
   fi
@@ -114,6 +140,16 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
 fi
 
+# Fail closed: without jq or python3 we cannot safely interpret swarm state.
+if ! has_jq && ! has_python3; then
+  prompt="Ralph Swarm stop hook cannot parse .ralph-swarm-state.json because neither jq nor python3 is installed."
+  prompt+=$'\n'"Install jq or python3, then continue. The hook is blocking exit to avoid incorrect swarm state transitions."
+  cat <<EOF
+{"decision":"block","reason":"$(json_escape "$prompt")","systemMessage":"Ralph Swarm stop hook blocked: install jq or python3"}
+EOF
+  exit 0
+fi
+
 # ── 2. Read phase ─────────────────────────────────────────────────────────────
 phase=$(read_state '.phase')
 
@@ -125,7 +161,7 @@ fi
 # If paused between planning phases, allow exit.
 if [[ "$phase" == "planning" ]]; then
   paused_after=$(read_state '.pausedAfter')
-  # "null" string check needed: grep/sed fallback returns literal "null" when jq is absent
+  # Defensive "null" string check for malformed/legacy state values.
   if [[ -n "$paused_after" && "$paused_after" != "null" ]]; then
     exit 0
   fi

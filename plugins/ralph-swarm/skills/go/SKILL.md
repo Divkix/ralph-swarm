@@ -2,6 +2,7 @@
 description: Resume execution after reviewing the generated plan
 argument-hint: ""
 allowed-tools: "*"
+disable-model-invocation: true
 ---
 
 # ralph-swarm:go

@@ -15,6 +15,9 @@ This skill defines the exact protocol for the lead agent to manage an Agent Team
 3. **Determine teammate count:**
    - If `--teammates <N>` flag was provided, use `N`.
    - Otherwise, auto-detect from `tasks.md`: compute parallel batches (see Runtime Parallelism Computation below) and use the size of the largest batch. Recommended: cap at 4, hard cap: 5.
+
+> For the full analysis algorithm, read `skills/team-composition/SKILL.md`. The summary below must stay in sync.
+
 4. **Determine agent type:**
    - If `--agent-type <type>` flag was provided, use that type for all teammates.
    - If the flag is `auto` or not provided, auto-detect from the project:

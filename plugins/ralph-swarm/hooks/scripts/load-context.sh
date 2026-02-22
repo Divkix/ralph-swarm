@@ -8,6 +8,7 @@ STATE_FILE=".ralph-swarm-state.json"
 
 # ── Helper: check if jq is available ──────────────────────────────────────────
 has_jq() { command -v jq &>/dev/null; }
+has_python3() { command -v python3 &>/dev/null; }
 
 # ── Helper: escape a string for safe embedding in JSON ────────────────────────
 json_escape() {
@@ -16,27 +17,48 @@ json_escape() {
   s="${s//\"/\\\"}"
   s="${s//$'\n'/\\n}"
   s="${s//$'\t'/\\t}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\b'/\\b}"
   printf '%s' "$s"
 }
 
 # ── Helper: read a field from the state file ──────────────────────────────────
+# Falls back to python3 when jq is missing.
 read_state() {
   local field="$1"
   if has_jq; then
     jq -r "if $field == null then empty else $field end" "$STATE_FILE" 2>/dev/null || echo ""
+  elif has_python3; then
+    python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    keys = sys.argv[2].lstrip('.').split('.')
+    v = d
+    for k in keys:
+        v = v[k]
+    if v is None:
+        sys.exit(0)
+    print(str(v).lower() if isinstance(v, bool) else v)
+except (KeyError, TypeError, FileNotFoundError, json.JSONDecodeError):
+    pass
+" "$STATE_FILE" "$field" 2>/dev/null || echo ""
   else
-    local key
-    key=$(echo "$field" | sed 's/.*\.//')
-    grep -o "\"${key}\"[[:space:]]*:[[:space:]]*[^,}]*" "$STATE_FILE" 2>/dev/null \
-      | head -1 \
-      | sed 's/.*:[[:space:]]*//' \
-      | tr -d '"' \
-      || echo ""
+    echo ""
   fi
 }
 
 # ── No state file — exit silently ─────────────────────────────────────────────
 if [[ ! -f "$STATE_FILE" ]]; then
+  exit 0
+fi
+
+# Fail safe: do not attempt lossy parsing of swarm state without a JSON parser.
+if ! has_jq && ! has_python3; then
+  summary="Ralph Swarm state detected, but SessionStart hook cannot parse JSON because neither jq nor python3 is installed. Install jq or python3, then run /ralph-swarm:status."
+  cat <<EOF
+{"systemMessage":"$(json_escape "$summary")"}
+EOF
   exit 0
 fi
 
@@ -69,7 +91,7 @@ if [[ "$phase" == "execution" || "$phase" == "executing" ]]; then
   progress="Tasks: ${completed_tasks}/${total_tasks} completed, iteration ${iteration:-0}/${max_iterations:-30}"
 elif [[ "$phase" == "planning" ]]; then
   paused_after=$(read_state '.pausedAfter')
-  # "null" string check needed: grep/sed fallback returns literal "null" when jq is absent
+  # Defensive "null" string check for malformed/legacy state values.
   if [[ -n "$paused_after" && "$paused_after" != "null" ]]; then
     # Compute the next command based on which phase we paused after
     case "$paused_after" in
@@ -83,7 +105,7 @@ elif [[ "$phase" == "planning" ]]; then
   else
     progress="Phase: planning (in progress)"
     spec_path=$(read_state '.specPath')
-    # "null" string check needed: grep/sed fallback returns literal "null" when jq is absent
+    # Defensive "null" string check for malformed/legacy state values.
     if [[ -n "$spec_path" && "$spec_path" != "null" && -d "$spec_path" ]]; then
       partial_count=$(find "$spec_path" -maxdepth 1 \( -name 'research-*.md' -o -name 'requirements-*.md' -o -name 'design-*.md' \) 2>/dev/null | wc -l | tr -d ' ')
       if [[ "$partial_count" -gt 0 ]]; then

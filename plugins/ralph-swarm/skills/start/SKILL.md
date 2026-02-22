@@ -2,6 +2,7 @@
 description: Plan and execute a task with optional Agent Teams parallelism
 argument-hint: <"goal"> [--full] [--swarm] [--yolo] [--teammates <n>] [--agent-type <type>] [--max-iterations <n>] [--commit] [--no-commit]
 allowed-tools: "*"
+disable-model-invocation: true
 ---
 
 # ralph-swarm:start

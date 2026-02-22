@@ -2,6 +2,7 @@
 description: Cancel active swarm, shutdown teammates, cleanup state
 argument-hint: ""
 allowed-tools: "*"
+disable-model-invocation: true
 ---
 
 # ralph-swarm:cancel

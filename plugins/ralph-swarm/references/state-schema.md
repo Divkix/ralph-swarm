@@ -2,6 +2,10 @@
 
 The `.ralph-swarm-state.json` file is the single source of truth for a ralph-swarm session. It tracks the current phase, planning progress, execution state, and configuration flags. The file lives at the project root and is read/written by the coordinator throughout the session lifecycle.
 
+> **Hook parser requirement:** The hook scripts require `jq` or `python3` to parse `.ralph-swarm-state.json` safely. If neither is available, `SessionStart` emits a warning message and `Stop` fails closed (blocks exit) to avoid incorrect swarm state transitions.
+
+> **Leaf-key uniqueness:** Every field in the schema must have a unique leaf key name (the last segment after the final dot). If the grep fallback is ever reintroduced, it resolves nested paths by leaf key only and cannot distinguish fields that share one (e.g., `.flags.swarm` vs `.execution.swarm`). Leaf-key uniqueness is maintained as a defensive constraint.
+
 ## Full Schema
 
 ```json

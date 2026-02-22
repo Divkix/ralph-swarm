@@ -2,6 +2,7 @@
 description: Run the requirements planning phase
 argument-hint: ""
 allowed-tools: "*"
+disable-model-invocation: true
 ---
 
 # ralph-swarm:requirements
@@ -68,7 +69,7 @@ If `planning.requirements` is already `"complete"`:
 
 **Pre-merge check (if `flags.swarm` is true):** Before spawning parallel agents, check `<specPath>` for partial files from a prior interrupted attempt:
 - If **all expected partial files** (`requirements-functional.md`, `requirements-nonfunctional.md`) exist AND `requirements.md` does NOT exist: skip agent delegation, proceed directly to merge. Read `skills/start/SKILL.md` and follow the [Merge Protocol](../start/SKILL.md#merge-protocol) section.
-- If **some but not all** partial files exist: delete the stale partials (incomplete prior run), then proceed with agent delegation.
+- If **only one** partial file exists: delete the stale partial (incomplete prior run), then proceed with agent delegation.
 - If **no partial files** exist: proceed normally.
 
 **If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-requirements` agent type:

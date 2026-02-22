@@ -2,6 +2,7 @@
 description: Run the task breakdown planning phase
 argument-hint: ""
 allowed-tools: "*"
+disable-model-invocation: true
 ---
 
 # ralph-swarm:tasks

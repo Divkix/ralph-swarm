@@ -30,6 +30,20 @@ Two phases:
 1. **Planning** — Four sequential sub-phases produce a full spec. No code is written.
 2. **Execution** — Tasks from the spec are executed by specialized agents. Code is written here.
 
+## Who It's For
+
+- Teams or solo developers who want a repeatable planning workflow before coding
+- Medium/large tasks where a written spec improves execution quality
+- Repos with enough parallelizable work to benefit from Agent Teams + worktrees
+- People who want a safer default (`review first`) with an opt-in autopilot path (`--yolo`)
+
+## Not A Fit If
+
+- You want a lightweight one-shot coding shortcut with minimal process
+- The task is tiny (1-2 quick edits) and planning overhead will dominate
+- The repo is highly coupled, making parallel execution mostly ineffective
+- You do not want hook-driven state persistence / resumption behavior
+
 ---
 
 ## Installation
@@ -43,6 +57,8 @@ Two phases:
 
 # Restart Claude Code
 ```
+
+Note: ralph-swarm hook scripts require `jq` or `python3` to parse `.ralph-swarm-state.json` safely.
 
 <details>
 <summary>Alternative: local development</summary>
@@ -64,7 +80,7 @@ claude --plugin-dir ./ralph-swarm/plugins/ralph-swarm
 /ralph-swarm:start "Build an authentication system with JWT tokens"
 ```
 
-Plans everything, pauses for your review, then executes tasks one at a time.
+Runs the research phase and pauses. Continue with `/ralph-swarm:requirements`, `/ralph-swarm:design`, and `/ralph-swarm:tasks` (or use `--full` to run all phases at once), then review and execute.
 
 ### Parallel with review
 
@@ -72,7 +88,7 @@ Plans everything, pauses for your review, then executes tasks one at a time.
 /ralph-swarm:start "Build an authentication system with JWT tokens" --swarm
 ```
 
-Same planning phase, but execution spawns multiple agents working in parallel.
+Same incremental planning flow (research first, then review/pause commands), but execution uses multiple agents working in parallel after `/ralph-swarm:go`.
 
 ### Full autopilot
 
@@ -119,7 +135,7 @@ Plans, skips review, immediately fires up a team of agents. No human in the loop
 
 ### Planning Phase
 
-Four sub-phases run in strict order. Each delegates to a specialized agent:
+Planning consists of four sub-phases that run in strict order. Each delegates to a specialized agent:
 
 | Phase | Agent | Output |
 |---|---|---|
@@ -128,7 +144,7 @@ Four sub-phases run in strict order. Each delegates to a specialized agent:
 | Design | `swarm-architect` | `specs/<name>/design.md` |
 | Tasks | `swarm-task-planner` | `specs/<name>/tasks.md` |
 
-After planning completes, you review the spec files (unless `--yolo` is set).
+In the default incremental flow, `/ralph-swarm:start` runs **Research** and pauses; you continue with `/ralph-swarm:requirements`, `/ralph-swarm:design`, and `/ralph-swarm:tasks`. After all planning phases complete, you review the spec files (unless `--yolo` is set).
 
 When `--swarm` is set, planning phases leverage intra-phase parallelism (see [Swarm (Parallel)](#swarm-parallel) for details).
 
@@ -148,41 +164,40 @@ When `--swarm` is set, planning phases also run in parallel: research spawns 3 f
 /ralph-swarm:start "goal" [flags]
        |
        v
-+------------------+
-|    PLANNING       |
-|  1. Research      |
-|  2. Requirements  |
-|  3. Design        |
-|  4. Tasks         |
-+--------+---------+
-         |
-    --yolo set?
-    /          \
-  yes           no
-   |             |
-   |     +-------v--------+
-   |     |  REVIEW SPEC   |
-   |     |  (edit files,  |
-   |     |  then /go)     |
-   |     +-------+--------+
-   |             |
-   +------+------+
-          |
-     --swarm set?
-     /          \
-   yes           no
-    |             |
-    v             v
-+---------+  +-----------+
-| PARALLEL |  | SEQUENTIAL |
-| N agents |  | 1 agent    |
-| worktrees|  | in order   |
-+---------+  +-----------+
-    |             |
-    +------+------+
-           |
-           v
-    SWARM COMPLETE
+  --full or --yolo?
+   /            \
+ no              yes
+ |               |
+ v               v
+Research      Research -> Requirements -> Design -> Tasks
+(pause)                |
+  | /requirements      | --yolo set?
+  v                    /          \
+Requirements (pause) yes           no
+  | /design           |             |
+  v                   |     +-------v--------+
+Design (pause)        |     |  REVIEW SPEC   |
+  | /tasks            |     |  (edit files,  |
+  v                   |     |  then /go)     |
+Tasks (planning-review) |    +-------+--------+
+  | /go               |             |
+  +-------------------+------+------+
+                             |
+                        --swarm set?
+                        /          \
+                      yes           no
+                       |             |
+                       v             v
+                   +---------+  +-----------+
+                   | PARALLEL |  | SEQUENTIAL |
+                   | N agents |  | 1 agent    |
+                   | worktrees|  | in order   |
+                   +---------+  +-----------+
+                       |             |
+                       +------+------+
+                              |
+                              v
+                       SWARM COMPLETE
 ```
 
 ---
@@ -266,7 +281,7 @@ A previous session left behind `.ralph-swarm-state.json`. Run `/ralph-swarm:canc
 The task is marked as failed and skipped. Check the spec files and the task description for ambiguity. Fix the spec, then re-run.
 
 **Session exits during execution**
-The stop hook should prevent this. Make sure `jq` is installed (the hook falls back to grep/sed but `jq` is more reliable). Check that `.ralph-swarm-state.json` exists and has `"phase": "execution"`.
+The stop hook should prevent this. Make sure `jq` or `python3` is installed so the hooks can parse `.ralph-swarm-state.json` safely. Check that `.ralph-swarm-state.json` exists and has `"phase": "execution"`.
 
 **Swarm mode errors**
 Agent Teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`:
@@ -331,10 +346,21 @@ ralph-swarm/
 
 - **Claude Code 1.0.34+** with plugin support
 - **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** for `--swarm` mode (sequential works without it)
-- No external dependencies — uses only built-in Claude Code tools
+- Hook scripts require **`jq` or `python3`** for safe state parsing (SessionStart warns and Stop blocks if neither is available)
 
 ---
 
 ## License
 
 MIT. See [LICENSE](plugins/ralph-swarm/LICENSE).
+
+---
+
+## Inspiration & Thanks
+
+This plugin takes inspiration from:
+
+- [smart-ralph](https://github.com/tzachbon/smart-ralph) by `tzachbon`
+- [superpowers](https://github.com/obra/superpowers) by `obra`
+
+Thanks for the ideas and prior work that helped shape this plugin.

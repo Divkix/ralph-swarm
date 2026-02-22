@@ -2,6 +2,7 @@
 description: Rollback all execution changes to pre-execution state
 argument-hint: ""
 allowed-tools: Read, Bash
+disable-model-invocation: true
 ---
 
 # ralph-swarm:rollback

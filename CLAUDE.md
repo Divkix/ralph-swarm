@@ -95,3 +95,6 @@ Changes to these files require updating their counterparts:
 | Parallel planning (--swarm) | `skills/start/SKILL.md` (merge protocol + agent tables + pre-merge checks), `skills/requirements/SKILL.md`, `skills/design/SKILL.md`, `hooks/scripts/swarm-watcher.sh` (planning interrupted prompt), `hooks/scripts/load-context.sh` (partial file detection), `references/state-schema.md`, `README.md`, `plugins/ralph-swarm/README.md`, `skills/help/SKILL.md`, `.claude-plugin/marketplace.json`, this file |
 | Agent dispatch tables | `skills/start/SKILL.md` (Parallel Planning Agent Tables section), `skills/requirements/SKILL.md` (inline table), `skills/design/SKILL.md` (inline table) |
 | `pausedAfter` field | `references/state-schema.md`, `hooks/scripts/swarm-watcher.sh`, `hooks/scripts/load-context.sh`, each phase skill, `skills/status/SKILL.md` |
+| `json_escape` helper | `hooks/scripts/swarm-watcher.sh`, `hooks/scripts/load-context.sh` — identical function, must be updated in both |
+| Team composition logic | `skills/swarm-coordinator/SKILL.md` (summary), `skills/team-composition/SKILL.md` (canonical), `skills/start/execution-protocol.md` (execution context) |
+| `read_state` function | `hooks/scripts/swarm-watcher.sh`, `hooks/scripts/load-context.sh` — parallel implementations, changes must be applied to both |

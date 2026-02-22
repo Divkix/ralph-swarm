@@ -25,6 +25,19 @@ Goal → Research → Requirements → Design → Tasks → Execution
 
 ## Key Concepts
 
+### Who It's For
+
+- Developers who want spec-first execution instead of jumping straight to code
+- Larger tasks where reviewable planning artifacts improve outcomes
+- Repos that can benefit from runtime parallelism via Agent Teams + worktrees
+- Users who want incremental planning by default, with `--full` / `--yolo` when needed
+
+### Not A Fit If
+
+- You only want a fast one-shot code generation command
+- The task is too small for planning overhead to pay off
+- The codebase is tightly coupled and difficult to parallelize safely
+
 ### Vertical Slices
 
 Tasks are decomposed as **vertical feature slices**, not horizontal layers. Each task delivers a complete piece of functionality end-to-end:
@@ -59,15 +72,20 @@ When `--swarm` is set, planning phases also leverage intra-phase parallelism (se
 | Command | Description |
 |---------|-------------|
 | `/ralph-swarm:start "goal" [flags]` | Plan and optionally execute a task |
+| `/ralph-swarm:requirements` | Run the requirements planning phase |
+| `/ralph-swarm:design` | Run the design planning phase |
+| `/ralph-swarm:tasks` | Run the task breakdown planning phase |
 | `/ralph-swarm:go` | Resume execution after reviewing the plan |
 | `/ralph-swarm:status` | Show current progress |
 | `/ralph-swarm:cancel` | Cancel and clean up |
+| `/ralph-swarm:rollback` | Reset to pre-execution state (destructive) |
 | `/ralph-swarm:help` | Show available commands |
 
 ### Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--full` | `false` | Run all 4 planning phases in one shot without pausing |
 | `--swarm` | `false` | Enable parallel planning (intra-phase) and parallel execution (Agent Teams) |
 | `--yolo` | `false` | Skip plan review, go straight to execution |
 | `--teammates N` | `auto` | Number of parallel agents (swarm mode) |
@@ -131,7 +149,9 @@ Or from GitHub:
 claude plugin add https://github.com/Divkix/ralph-swarm
 ```
 
-After installing, verify with `/ralph-swarm:help` — all 5 slash commands should appear in autocomplete.
+After installing, verify with `/ralph-swarm:help` — the `ralph-swarm` slash commands should appear in autocomplete (including `/ralph-swarm:start`, `/ralph-swarm:requirements`, `/ralph-swarm:go`, and `/ralph-swarm:help`).
+
+Hook scripts require `jq` or `python3` to parse `.ralph-swarm-state.json` safely. If neither is installed, the SessionStart hook warns and the Stop hook blocks to avoid incorrect swarm state transitions.
 
 ## Architecture
 
@@ -154,3 +174,12 @@ After installing, verify with `/ralph-swarm:help` — all 5 slash commands shoul
 | `skills/team-composition/` | Determine optimal teammate count and agent types |
 | `references/state-schema.md` | State file format documentation |
 | `references/agent-team-patterns.md` | Best practices for Agent Teams coordination |
+
+## Inspiration & Thanks
+
+Inspired by:
+
+- [smart-ralph](https://github.com/tzachbon/smart-ralph)
+- [superpowers](https://github.com/obra/superpowers)
+
+Thanks to the authors and maintainers for the ideas and groundwork.

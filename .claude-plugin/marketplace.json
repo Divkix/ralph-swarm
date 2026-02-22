@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "ralph-swarm",
-      "description": "Spec-driven planning with intra-phase parallel planning and persistent parallel execution via Agent Teams. One command to plan, review, and ship.",
+      "description": "Spec-driven planning with intra-phase parallelism and persistent sequential or parallel execution via Agent Teams. One command to plan, review, and ship.",
       "author": {
         "name": "Divanshu Chauhan"
       },
