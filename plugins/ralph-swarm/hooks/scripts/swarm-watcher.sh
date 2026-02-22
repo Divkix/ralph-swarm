@@ -15,6 +15,16 @@ HOOK_INPUT=$(cat)
 # ── Helper: check if jq is available ──────────────────────────────────────────
 has_jq() { command -v jq &>/dev/null; }
 
+# ── Helper: escape a string for safe embedding in JSON ────────────────────────
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
 # ── Helper: portable file lock (mkdir-based) ──────────────────────────────────
 STATE_LOCKDIR="${STATE_FILE}.lock"
 _LOCK_HELD=false
@@ -48,7 +58,7 @@ trap release_lock EXIT
 read_state() {
   local field="$1"
   if has_jq; then
-    jq -r "$field" "$STATE_FILE" 2>/dev/null || echo ""
+    jq -r "if $field == null then empty else $field end" "$STATE_FILE" 2>/dev/null || echo ""
   else
     # Crude fallback — works for simple top-level and one-level nested keys.
     # Translates ".execution.iteration" to a grep for "iteration".
@@ -64,6 +74,8 @@ read_state() {
 
 # ── Helper: count completed + failed tasks from state ─────────────────────────
 # Returns "completed failed total" as space-separated integers.
+# Uses jq directly (not read_state) because it needs array type-checking and
+# length operations that read_state's single-value extraction cannot express.
 read_task_counts() {
   if has_jq; then
     local completed failed total
@@ -113,6 +125,7 @@ fi
 # If paused between planning phases, allow exit.
 if [[ "$phase" == "planning" ]]; then
   paused_after=$(read_state '.pausedAfter')
+  # "null" string check needed: grep/sed fallback returns literal "null" when jq is absent
   if [[ -n "$paused_after" && "$paused_after" != "null" ]]; then
     exit 0
   fi
@@ -172,7 +185,7 @@ if echo "$HOOK_INPUT" | grep -qiE '<promise>\s*SWARM\s+COMPLETE\s*</promise>'; t
       '{"decision":$decision,"reason":$reason,"systemMessage":$sysMsg}'
   else
     cat <<EOF
-{"decision":"block","reason":"${prompt}","systemMessage":"Swarm iteration ${new_iteration} — premature completion rejected"}
+{"decision":"block","reason":"$(json_escape "$prompt")","systemMessage":"Swarm iteration ${new_iteration} — premature completion rejected"}
 EOF
   fi
   exit 0
@@ -206,7 +219,7 @@ if [[ "$swarm_mode" == "true" ]]; then
         '{"decision":$decision,"reason":$reason,"systemMessage":$sysMsg}'
     else
       cat <<EOF
-{"decision":"block","reason":"${tc_prompt}","systemMessage":"Swarm iteration ${new_iteration} — TeamCreate REQUIRED"}
+{"decision":"block","reason":"$(json_escape "$tc_prompt")","systemMessage":"Swarm iteration ${new_iteration} — TeamCreate REQUIRED"}
 EOF
     fi
     exit 0
@@ -221,12 +234,33 @@ if [[ "$phase" == "planning" ]]; then
   design_status=$(read_state '.planning.design')
   tasks_status=$(read_state '.planning.tasks')
 
-  prompt="PLANNING PHASE INTERRUPTED - Follow these steps in order:"
-  prompt+=$'\n'"1. Read .ralph-swarm-state.json to check planning sub-phase statuses."
-  prompt+=$'\n'"2. Identify the sub-phase that is 'in-progress' or 'failed'."
-  prompt+=$'\n'"3. If a sub-phase is 'failed': report the error to the user and stop."
-  prompt+=$'\n'"4. If a sub-phase is 'in-progress': resume it by re-delegating to the appropriate agent."
-  prompt+=$'\n'"5. After completion, update the state file and continue to the next planning phase."
+  spec_path=$(read_state '.specPath')
+  planning_swarm=$(read_state '.flags.swarm')
+  planning_swarm=${planning_swarm:-false}
+
+  if [[ "$planning_swarm" == "true" ]]; then
+    # Full 7-step prompt with partial file awareness for parallel planning
+    prompt="PLANNING PHASE INTERRUPTED - Follow these steps in order:"
+    prompt+=$'\n'"1. Read .ralph-swarm-state.json to check planning sub-phase statuses and get specPath and flags.swarm."
+    prompt+=$'\n'"2. Identify the sub-phase that is 'in-progress' or 'failed'."
+    prompt+=$'\n'"3. If a sub-phase is 'failed': report the error to the user and stop."
+    prompt+=$'\n'"4. If a sub-phase is 'in-progress': check specPath for partial files before re-delegating."
+    prompt+=$'\n'"   - Research: research-structure.md, research-dependencies.md, research-testing.md"
+    prompt+=$'\n'"   - Requirements: requirements-functional.md, requirements-nonfunctional.md"
+    prompt+=$'\n'"   - Design: design-architecture.md, design-contracts.md"
+    prompt+=$'\n'"5. If partial files found AND canonical file missing: skip re-delegation, proceed directly to merge (follow Merge Protocol in skills/start/SKILL.md)."
+    prompt+=$'\n'"6. If no partial files found: re-delegate the phase from scratch."
+    prompt+=$'\n'"7. After completion, update the state file and continue to the next planning phase."
+  else
+    # Simpler 5-step prompt for sequential planning (no partial files to check)
+    prompt="PLANNING PHASE INTERRUPTED - Follow these steps in order:"
+    prompt+=$'\n'"1. Read .ralph-swarm-state.json to check planning sub-phase statuses."
+    prompt+=$'\n'"2. Identify the sub-phase that is 'in-progress' or 'failed'."
+    prompt+=$'\n'"3. If a sub-phase is 'failed': report the error to the user and stop."
+    prompt+=$'\n'"4. Re-delegate the interrupted phase from scratch."
+    prompt+=$'\n'"5. After completion, update the state file and continue to the next planning phase."
+  fi
+  prompt+=$'\n'"specPath=${spec_path:-unknown}"
   prompt+=$'\n'"Current statuses: research=${research_status:-pending}, requirements=${requirements_status:-pending}, design=${design_status:-pending}, tasks=${tasks_status:-pending}"
 
   if has_jq; then
@@ -237,12 +271,13 @@ if [[ "$phase" == "planning" ]]; then
       '{"decision":$decision,"reason":$reason,"systemMessage":$sysMsg}'
   else
     cat <<EOF
-{"decision":"block","reason":"${prompt}","systemMessage":"Swarm iteration ${new_iteration} — planning phase interrupted"}
+{"decision":"block","reason":"$(json_escape "$prompt")","systemMessage":"Swarm iteration ${new_iteration} — planning phase interrupted"}
 EOF
   fi
   exit 0
 fi
 
+# ── 5c. Execution phase re-injection — swarm vs sequential ──────────────────
 if [[ "$swarm_mode" == "true" ]]; then
   prompt="SWARM COORDINATOR LOOP - Follow these steps in order:"
   prompt+=$'\n'"1. Call TaskList to see all pending, in-progress, and completed tasks."
@@ -272,8 +307,7 @@ if has_jq; then
     --arg sysMsg "Swarm iteration ${new_iteration}" \
     '{"decision":$decision,"reason":$reason,"systemMessage":$sysMsg}'
 else
-  # Manual JSON construction — values are safe (no user-controlled content).
   cat <<EOF
-{"decision":"block","reason":"${prompt}","systemMessage":"Swarm iteration ${new_iteration}"}
+{"decision":"block","reason":"$(json_escape "$prompt")","systemMessage":"Swarm iteration ${new_iteration}"}
 EOF
 fi

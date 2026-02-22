@@ -9,11 +9,21 @@ STATE_FILE=".ralph-swarm-state.json"
 # ── Helper: check if jq is available ──────────────────────────────────────────
 has_jq() { command -v jq &>/dev/null; }
 
+# ── Helper: escape a string for safe embedding in JSON ────────────────────────
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
 # ── Helper: read a field from the state file ──────────────────────────────────
 read_state() {
   local field="$1"
   if has_jq; then
-    jq -r "$field // empty" "$STATE_FILE" 2>/dev/null || echo ""
+    jq -r "if $field == null then empty else $field end" "$STATE_FILE" 2>/dev/null || echo ""
   else
     local key
     key=$(echo "$field" | sed 's/.*\.//')
@@ -59,6 +69,7 @@ if [[ "$phase" == "execution" || "$phase" == "executing" ]]; then
   progress="Tasks: ${completed_tasks}/${total_tasks} completed, iteration ${iteration:-0}/${max_iterations:-30}"
 elif [[ "$phase" == "planning" ]]; then
   paused_after=$(read_state '.pausedAfter')
+  # "null" string check needed: grep/sed fallback returns literal "null" when jq is absent
   if [[ -n "$paused_after" && "$paused_after" != "null" ]]; then
     # Compute the next command based on which phase we paused after
     case "$paused_after" in
@@ -71,6 +82,14 @@ elif [[ "$phase" == "planning" ]]; then
     progress="Phase: planning | Paused after: ${paused_after}. Next: ${next_cmd}"
   else
     progress="Phase: planning (in progress)"
+    spec_path=$(read_state '.specPath')
+    # "null" string check needed: grep/sed fallback returns literal "null" when jq is absent
+    if [[ -n "$spec_path" && "$spec_path" != "null" && -d "$spec_path" ]]; then
+      partial_count=$(find "$spec_path" -maxdepth 1 \( -name 'research-*.md' -o -name 'requirements-*.md' -o -name 'design-*.md' \) 2>/dev/null | wc -l | tr -d ' ')
+      if [[ "$partial_count" -gt 0 ]]; then
+        progress="${progress} | ${partial_count} partial file(s) from interrupted parallel planning"
+      fi
+    fi
   fi
 else
   progress="Phase: ${phase}"
@@ -101,6 +120,6 @@ if has_jq; then
   jq -n --arg msg "$summary" '{"systemMessage":$msg}'
 else
   cat <<EOF
-{"systemMessage":"${summary}"}
+{"systemMessage":"$(json_escape "$summary")"}
 EOF
 fi
