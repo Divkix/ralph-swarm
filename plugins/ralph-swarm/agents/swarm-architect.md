@@ -6,7 +6,8 @@ description: |
   "plan the implementation approach", "define data flow", "design API contracts",
   "choose patterns", "define error handling strategy", "plan testing approach".
 model: inherit
-color: yellow
+tools: Read, Glob, Grep, WebSearch, WebFetch, Write
+maxTurns: 30
 ---
 
 # Swarm Architect

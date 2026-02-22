@@ -1,7 +1,7 @@
 ---
 description: Show current swarm progress and status
 argument-hint: ""
-allowed-tools: ["Read", "Bash", "TaskList"]
+allowed-tools: Read, Bash, TaskList
 ---
 
 # ralph-swarm:status

@@ -6,7 +6,8 @@ description: |
   "scope the work", "define what done looks like", "translate goals to specs",
   "clarify requirements", "identify edge cases".
 model: inherit
-color: cyan
+tools: Read, Glob, Grep, WebSearch, WebFetch, Write
+maxTurns: 25
 ---
 
 # Swarm Requirements

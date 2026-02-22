@@ -6,7 +6,8 @@ description: |
   "organize work into feature slices", "define task order",
   "plan the sprint", "create work items".
 model: inherit
-color: magenta
+tools: Read, Glob, Grep, Write
+maxTurns: 25
 ---
 
 # Swarm Task Planner

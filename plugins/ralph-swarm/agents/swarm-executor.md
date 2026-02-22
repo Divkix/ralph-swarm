@@ -6,7 +6,7 @@ description: |
   "build this component", "write the code for task X",
   "implement TASK-xxx", "pick up a task and run it".
 model: inherit
-color: green
+maxTurns: 40
 ---
 
 # Swarm Executor

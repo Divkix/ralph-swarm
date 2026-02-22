@@ -6,7 +6,8 @@ description: |
   "validate the build", "run tests and report", "check if everything passes",
   "verify phase completion", "run the full test suite", "quality check".
 model: inherit
-color: red
+tools: Read, Glob, Grep, Bash
+maxTurns: 20
 ---
 
 # Swarm Verifier

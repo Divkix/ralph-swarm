@@ -1,7 +1,6 @@
 ---
 name: swarm-coordinator
 description: This skill should be used when coordinating Agent Teams for parallel task execution, managing teammates, assigning tasks, and verifying completed work.
-version: 2.0.0
 user-invocable: false
 ---
 

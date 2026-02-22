@@ -1,7 +1,6 @@
 ---
 name: team-composition
 description: This skill should be used when determining how many teammates to spawn and what agent types to use, based on tasks.md analysis.
-version: 1.0.0
 user-invocable: false
 ---
 

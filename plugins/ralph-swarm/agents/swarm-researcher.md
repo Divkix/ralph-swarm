@@ -6,7 +6,8 @@ description: |
   "gather context", "check existing patterns", "investigate dependencies",
   "find how X works", "survey the codebase for Y".
 model: inherit
-color: blue
+tools: Read, Glob, Grep, WebSearch, WebFetch, Bash
+maxTurns: 30
 ---
 
 # Swarm Researcher
