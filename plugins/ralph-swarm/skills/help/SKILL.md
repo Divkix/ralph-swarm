@@ -2,6 +2,7 @@
 description: Show ralph-swarm plugin help and available commands
 argument-hint: ""
 allowed-tools: []
+disable-model-invocation: true
 ---
 
 # ralph-swarm:help

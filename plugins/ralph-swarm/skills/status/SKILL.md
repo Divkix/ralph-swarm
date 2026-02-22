@@ -2,6 +2,7 @@
 description: Show current swarm progress and status
 argument-hint: ""
 allowed-tools: Read, Bash, TaskList
+disable-model-invocation: true
 ---
 
 # ralph-swarm:status
