@@ -98,7 +98,8 @@ FLAGS (for /ralph-swarm:start)
                        and pauses for review.
                        Default: false
 
-  --swarm              Enable parallel execution with Agent Teams.
+  --swarm              Enable parallel planning (intra-phase agents) and
+                       parallel execution (Agent Teams with worktrees).
                        Default: false (sequential mode)
 
   --yolo               Skip the planning review pause and go straight
@@ -136,7 +137,9 @@ EXECUTION MODES
     Tasks are executed in parallel using Claude Code Agent Teams. The lead
     creates a team, spawns executor teammates, distributes tasks respecting
     dependencies, and monitors progress. Multiple tasks run simultaneously
-    when their dependencies are satisfied.
+    when their dependencies are satisfied. In swarm mode, planning phases
+    also leverage parallelism — research uses 3 agents, requirements and
+    design each use 2 agents running concurrently within their phase.
 
 FLOW DIAGRAM
 

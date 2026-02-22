@@ -233,7 +233,7 @@ Configuration flags parsed from CLI arguments that modify coordinator behavior.
 #### `flags.swarm`
 - **Type:** `boolean`
 - **Default:** `false`
-- **Description:** When `true`, use Agent Teams (swarm mode) for parallel task execution. When `false`, execute tasks sequentially.
+- **Description:** When `true`, enables parallelism in both planning (multiple focused agents per phase) and execution (Agent Teams with parallel worktrees). When `false`, all planning and execution is single-agent sequential.
 - **Updated:** Set once from CLI flags during initialization.
 
 #### `flags.yolo`

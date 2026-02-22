@@ -92,5 +92,6 @@ Changes to these files require updating their counterparts:
 | Agent types / fallback | `skills/swarm-coordinator/SKILL.md` AND `skills/team-composition/SKILL.md` |
 | Promise tag format | `swarm-watcher.sh` regex (line with `grep -qiE`) |
 | Planning phase logic | Each phase skill (`skills/requirements/`, `skills/design/`, `skills/tasks/`) AND `skills/start/SKILL.md` `--full` path |
-| Parallel planning (--swarm) | `skills/start/SKILL.md` (merge protocol + phase conditionals), `skills/requirements/SKILL.md`, `skills/design/SKILL.md` |
+| Parallel planning (--swarm) | `skills/start/SKILL.md` (merge protocol + agent tables + pre-merge checks), `skills/requirements/SKILL.md`, `skills/design/SKILL.md`, `hooks/scripts/swarm-watcher.sh` (planning interrupted prompt), `hooks/scripts/load-context.sh` (partial file detection), `references/state-schema.md`, `README.md`, `plugins/ralph-swarm/README.md`, `skills/help/SKILL.md`, `.claude-plugin/marketplace.json`, this file |
+| Agent dispatch tables | `skills/start/SKILL.md` (Parallel Planning Agent Tables section), `skills/requirements/SKILL.md` (inline table), `skills/design/SKILL.md` (inline table) |
 | `pausedAfter` field | `references/state-schema.md`, `hooks/scripts/swarm-watcher.sh`, `hooks/scripts/load-context.sh`, each phase skill, `skills/status/SKILL.md` |

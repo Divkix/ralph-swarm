@@ -132,13 +132,14 @@ Run **only** the research phase. The remaining phases are run via separate comma
 
 - Before delegating: set `planning.research` to `"in-progress"` in the state file
 
+**Pre-merge check (if `flags.swarm` is true):** Before spawning parallel agents, check `<specPath>` for partial files from a prior interrupted attempt (`research-structure.md`, `research-dependencies.md`, `research-testing.md`):
+- If **all 3 partial files** exist AND `research.md` does NOT exist: skip agent delegation, proceed directly to the [Merge Protocol](#merge-protocol).
+- If **1 or 2 (but not all 3)** partial files exist: delete the stale partials (incomplete prior run), then proceed with agent delegation.
+- If **no partial files** exist: proceed normally.
+
 **If `flags.swarm` is true:** Spawn 3 parallel Task calls, all using `swarm-researcher` agent type:
 
-| Agent | Focus | Output File |
-|-------|-------|-------------|
-| A | **Codebase structure**: file organization, modules, entry points, existing patterns, conventions, build system | `<specPath>/research-structure.md` |
-| B | **Dependencies & external**: packages, versions, APIs, services, config, known issues, deprecations | `<specPath>/research-dependencies.md` |
-| C | **Testing & quality**: test infrastructure, coverage patterns, CI/CD, error handling patterns, code quality | `<specPath>/research-testing.md` |
+See [Research Phase Agents](#research-phase-agents-when-flagsswarm-is-true) for agent dispatch details.
 
 - Launch all 3 as parallel Task calls (in a single message with 3 tool uses).
 - Each agent's instruction: "Research the codebase for: `<goal>`. Focus specifically on **<focus area>**. Save findings to `<output file>`. Follow the research protocol exactly."
@@ -178,13 +179,14 @@ Run all four phases in strict order. Each phase delegates to a specialized agent
 
 - Before delegating: set `planning.research` to `"in-progress"` in the state file
 
+**Pre-merge check (if `flags.swarm` is true):** Before spawning parallel agents, check `<specPath>` for partial files from a prior interrupted attempt (`research-structure.md`, `research-dependencies.md`, `research-testing.md`):
+- If **all 3 partial files** exist AND `research.md` does NOT exist: skip agent delegation, proceed directly to the [Merge Protocol](#merge-protocol).
+- If **1 or 2 (but not all 3)** partial files exist: delete the stale partials (incomplete prior run), then proceed with agent delegation.
+- If **no partial files** exist: proceed normally.
+
 **If `flags.swarm` is true:** Spawn 3 parallel Task calls, all using `swarm-researcher` agent type:
 
-| Agent | Focus | Output File |
-|-------|-------|-------------|
-| A | **Codebase structure**: file organization, modules, entry points, existing patterns, conventions, build system | `<specPath>/research-structure.md` |
-| B | **Dependencies & external**: packages, versions, APIs, services, config, known issues, deprecations | `<specPath>/research-dependencies.md` |
-| C | **Testing & quality**: test infrastructure, coverage patterns, CI/CD, error handling patterns, code quality | `<specPath>/research-testing.md` |
+See [Research Phase Agents](#research-phase-agents-when-flagsswarm-is-true) for agent dispatch details.
 
 - Launch all 3 as parallel Task calls (in a single message with 3 tool uses).
 - Each agent's instruction: "Research the codebase for: `<goal>`. Focus specifically on **<focus area>**. Save findings to `<output file>`. Follow the research protocol exactly."
@@ -205,12 +207,14 @@ Run all four phases in strict order. Each phase delegates to a specialized agent
 
 - Before delegating: set `planning.requirements` to `"in-progress"` in the state file
 
+**Pre-merge check (if `flags.swarm` is true):** Before spawning parallel agents, check `<specPath>` for partial files from a prior interrupted attempt (`requirements-functional.md`, `requirements-nonfunctional.md`):
+- If **both partial files** exist AND `requirements.md` does NOT exist: skip agent delegation, proceed directly to the [Merge Protocol](#merge-protocol).
+- If **only one** partial file exists: delete the stale partial (incomplete prior run), then proceed with agent delegation.
+- If **no partial files** exist: proceed normally.
+
 **If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-requirements` agent type:
 
-| Agent | Focus | Output File |
-|-------|-------|-------------|
-| A | **Functional**: user stories (happy paths), core acceptance criteria, scope boundaries, dependencies between features | `<specPath>/requirements-functional.md` |
-| B | **Non-functional & edge cases**: edge case analysis, performance/security NFRs, error scenarios, backwards compatibility | `<specPath>/requirements-nonfunctional.md` |
+See [Requirements Phase Agents](#requirements-phase-agents-when-flagsswarm-is-true) for agent dispatch details.
 
 - Launch both as parallel Task calls (in a single message with 2 tool uses).
 - Each agent's instruction: "Based on the research at `<specPath>/research.md`, produce requirements for: `<goal>`. Focus specifically on **<focus area>**. Save to `<output file>`."
@@ -238,12 +242,14 @@ Run all four phases in strict order. Each phase delegates to a specialized agent
 
 - Before delegating: set `planning.design` to `"in-progress"` in the state file
 
+**Pre-merge check (if `flags.swarm` is true):** Before spawning parallel agents, check `<specPath>` for partial files from a prior interrupted attempt (`design-architecture.md`, `design-contracts.md`):
+- If **both partial files** exist AND `design.md` does NOT exist: skip agent delegation, proceed directly to the [Merge Protocol](#merge-protocol).
+- If **only one** partial file exists: delete the stale partial (incomplete prior run), then proceed with agent delegation.
+- If **no partial files** exist: proceed normally.
+
 **If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-architect` agent type:
 
-| Agent | Focus | Output File |
-|-------|-------|-------------|
-| A | **Architecture & data**: component design, data models, migrations, data flow, parallelization analysis | `<specPath>/design-architecture.md` |
-| B | **Contracts & strategy**: API contracts, interfaces, error handling strategy, testing strategy, design decisions | `<specPath>/design-contracts.md` |
+See [Design Phase Agents](#design-phase-agents-when-flagsswarm-is-true) for agent dispatch details.
 
 - Launch both as parallel Task calls (in a single message with 2 tool uses).
 - Each agent's instruction: "Based on the research at `<specPath>/research.md` and requirements at `<specPath>/requirements.md`, produce a design document for: `<goal>`. Focus specifically on **<focus area>**. Save to `<output file>`."
@@ -325,6 +331,7 @@ See [execution-protocol.md](./execution-protocol.md) for the full execution prot
 
 When `flags.swarm` is true, each planning phase (except tasks) spawns multiple agents in parallel. After all agents in a phase return, the lead agent merges their outputs:
 
+0. **Clean stale canonical file** — If the canonical output file already exists (e.g., `research.md` from a prior run), delete it before merging. This prevents contamination from a previous merge. (The pre-merge check already ensures the canonical file doesn't exist when entering via the recovery path, but this guards against re-runs within the same session.)
 1. **Read** all partial files from `<specPath>` (e.g., `research-structure.md`, `research-dependencies.md`, `research-testing.md`)
 2. **Deduplicate** overlapping findings — agents may discover the same things from different angles
 3. **Resolve contradictions** — prefer the agent whose focus area is most relevant to the conflicting point
@@ -332,11 +339,40 @@ When `flags.swarm` is true, each planning phase (except tasks) spawns multiple a
 5. **Write** the merged canonical file to `<specPath>` (e.g., `research.md`)
 6. **Delete** all partial temp files (cleanup — e.g., `research-structure.md`, `research-dependencies.md`, `research-testing.md`)
 
-**Error handling:** If one agent fails, merge the successful outputs and warn the user about the failed agent. If ALL agents in a phase fail, set the phase to `"failed"` and stop (same as current single-agent failure behavior).
+**Error handling:**
+- **All agents succeed:** merge normally.
+- **Research (3 agents), 1 fails:** merge the 2 successful outputs. Warn: "Research agent <focus> failed. Output may have gaps in <focus area>. Review research.md before proceeding."
+- **Research (3 agents), 2+ fail:** set `planning.research` to `"failed"` and stop. Only 1/3 coverage is insufficient.
+- **Requirements or Design (2 agents), 1 fails:** set `planning.<current-phase>` (e.g., `planning.requirements` or `planning.design`) to `"failed"` and stop. A single agent in a 2-agent split covers only ~50% of scope — merging would produce an unreliable document. Report which agent failed.
+- **All agents fail:** set `planning.<current-phase>` to `"failed"` and stop.
+
+## Parallel Planning Agent Tables
+
+### Research Phase Agents (when `flags.swarm` is true)
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Codebase structure**: file organization, modules, entry points, existing patterns, conventions, build system | `<specPath>/research-structure.md` |
+| B | **Dependencies & external**: packages, versions, APIs, services, config, known issues, deprecations | `<specPath>/research-dependencies.md` |
+| C | **Testing & quality**: test infrastructure, coverage patterns, CI/CD, error handling patterns, code quality | `<specPath>/research-testing.md` |
+
+### Requirements Phase Agents (when `flags.swarm` is true)
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Functional**: user stories (happy paths), core acceptance criteria, scope boundaries, dependencies between features | `<specPath>/requirements-functional.md` |
+| B | **Non-functional & edge cases**: edge case analysis, performance/security NFRs, error scenarios, backwards compatibility | `<specPath>/requirements-nonfunctional.md` |
+
+### Design Phase Agents (when `flags.swarm` is true)
+
+| Agent | Focus | Output File |
+|-------|-------|-------------|
+| A | **Architecture & data**: component design, data models, migrations, data flow, parallelization analysis | `<specPath>/design-architecture.md` |
+| B | **Contracts & strategy**: API contracts, interfaces, error handling strategy, testing strategy, design decisions | `<specPath>/design-contracts.md` |
 
 ## Error Handling
 
-- If any planning phase agent fails, update that phase status to `"failed"` in the state file, report the error, and stop. Do not proceed to the next phase.
+- If any planning phase agent fails, set `planning.<current-phase>` (e.g., `planning.research`, `planning.requirements`, `planning.design`, or `planning.tasks`) to `"failed"` in the state file, report the error, and stop. Do not proceed to the next phase.
 - If a task execution fails in sequential mode, mark it as `"failed"`, increment `failedTasks`, and attempt the next eligible task. If all remaining tasks depend on failed tasks, update the state file (ensure completedTasks + failedTasks accounts for all tasks), set `phase` to `"complete"`, then output the completion promise with a failure summary.
 - If the state file cannot be written, error immediately — the stop hook depends on it.
 - Never silently swallow errors. Always report what went wrong and what the user can do about it.

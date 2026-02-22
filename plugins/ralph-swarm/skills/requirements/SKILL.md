@@ -66,6 +66,11 @@ If `planning.requirements` is already `"complete"`:
 2. Set `planning.requirements` to `"in-progress"` in the state file.
 3. Write the updated state file.
 
+**Pre-merge check (if `flags.swarm` is true):** Before spawning parallel agents, check `<specPath>` for partial files from a prior interrupted attempt:
+- If **all expected partial files** (`requirements-functional.md`, `requirements-nonfunctional.md`) exist AND `requirements.md` does NOT exist: skip agent delegation, proceed directly to merge. Read `skills/start/SKILL.md` and follow the [Merge Protocol](../start/SKILL.md#merge-protocol) section.
+- If **some but not all** partial files exist: delete the stale partials (incomplete prior run), then proceed with agent delegation.
+- If **no partial files** exist: proceed normally.
+
 **If `flags.swarm` is true:** Spawn 2 parallel Task calls using `swarm-requirements` agent type:
 
 | Agent | Focus | Output File |
@@ -76,13 +81,8 @@ If `planning.requirements` is already `"complete"`:
 - Launch both as parallel Task calls (in a single message with 2 tool uses).
 - Each agent's instruction: "Based on the research at `<specPath>/research.md`, produce requirements for: `<goal>`. Focus specifically on **<focus area>**. Save to `<output file>`."
 - Pass to each: goal, CLAUDE.md content (if exists), research.md content
-- After both complete, **merge** the partial files:
-  1. Read both partial files
-  2. Deduplicate overlapping requirements
-  3. Resolve any contradictions (prefer the agent whose focus area is more relevant)
-  4. Combine into `<specPath>/requirements.md` preserving the canonical format
-  5. Delete the partial files (`requirements-functional.md`, `requirements-nonfunctional.md`)
-- If one agent fails, merge the successful output and warn. If both fail, set phase to `"failed"` and stop.
+- After both complete: Read `skills/start/SKILL.md` and follow the [Merge Protocol](../start/SKILL.md#merge-protocol) section to combine partial files into `<specPath>/requirements.md`. Partial files: `requirements-functional.md`, `requirements-nonfunctional.md`.
+- Error handling: Both agents must succeed. If one fails, set `planning.requirements` to `"failed"` and stop.
 
 **If `flags.swarm` is false (default):** Single-agent delegation:
 
