@@ -115,12 +115,31 @@ Best for: larger projects with many independent feature slices, when you want sp
 
 The File Manifest at the bottom enables the coordinator to quickly scan for file conflicts and compute parallel batches without re-parsing every task.
 
+## Installation
+
+```bash
+claude plugin add /path/to/ralph-swarm/plugins/ralph-swarm
+```
+
+Or from GitHub:
+
+```bash
+claude plugin add https://github.com/Divkix/ralph-swarm
+```
+
+After installing, verify with `/ralph-swarm:help` — all 5 slash commands should appear in autocomplete.
+
 ## Architecture
 
 | Component | Role |
 |-----------|------|
-| `commands/start.md` | Entry point: parse args, run planning phases, begin execution |
-| `commands/go.md` | Resume execution after plan review |
+| `skills/start/SKILL.md` | Entry point: parse args, run planning phases, begin execution |
+| `skills/start/execution-protocol.md` | Shared execution protocol (sequential + swarm modes) |
+| `skills/start/task-format.md` | Canonical task format specification |
+| `skills/go/SKILL.md` | Resume execution after plan review |
+| `skills/status/SKILL.md` | Display current swarm progress |
+| `skills/cancel/SKILL.md` | Cancel and clean up swarm state |
+| `skills/help/SKILL.md` | Show available commands and flags |
 | `agents/swarm-task-planner.md` | Decompose design into vertical feature slices |
 | `agents/swarm-executor.md` | Execute a single task autonomously |
 | `agents/swarm-verifier.md` | Verify task completion |
